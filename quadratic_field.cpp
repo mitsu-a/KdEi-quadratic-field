@@ -115,17 +115,14 @@ struct ring_of_integer{
         std::pair<int,int> mod_representative()const{//雪江整数2 命題1.10.7　[x,y]をreturnするとして， y√d==0 mod(*this) になるような取り方．
             if(a==0 && b==0)return std::make_pair(0,0);
             const int n=std::abs(norm());
-            int x,y;
+            int g;
             if(MOD4(d)==1){
-                x=a;
-                y=(d-1)/4*b;
+                g=std::gcd(a,(d-1)/4*b);
             }
             else{
-                x=a;
-                y=d*b;
+                g=std::gcd(a,d*b);
             }
-            int g=std::gcd(x,y);
-            return std::make_pair(std::gcd(g,n),n/std::gcd(g,n));
+            return std::make_pair(g,n/g);
         }
         bool mod_eq(elem l,elem r)const{//l==r mod(*this)
             return this->is_divisor_of(l-r);

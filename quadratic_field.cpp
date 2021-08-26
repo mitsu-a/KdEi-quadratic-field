@@ -8,6 +8,13 @@
 
 #define MOD4(d) (d%4+4)%4
 
+//solve ax+by=gcd(a,b)
+std::pair<int,int> solve_lineareq(int a,int b){
+    if(b==0)return {1,0};
+    auto [x,y]=solve_lineareq(b,a%b);
+    return {y,x-a/b*y};
+}
+
 template<int &d>
 struct ring_of_integer{
     struct elem{

@@ -1,19 +1,14 @@
-#include<iostream>
-#include<vector>
-#include<queue>
-#include<utility>
-#include<assert.h>
-#include<numeric>
-#include<set>
+#include <iostream>
+#include <vector>
+#include <queue>
+#include <utility>
+#include <assert.h>
+#include <numeric>
+#include <set>
+#include "garner's_algorithm.hpp"
+#include "linear_equation.hpp"
 
 #define MOD4(d) (d%4+4)%4
-
-//solve ax+by=gcd(a,b)
-std::pair<int,int> solve_lineareq(int a,int b){
-    if(b==0)return {1,0};
-    auto [x,y]=solve_lineareq(b,a%b);
-    return {y,x-a/b*y};
-}
 
 template<int &d>
 struct ring_of_integer{
@@ -63,20 +58,53 @@ struct ring_of_integer{
             }
             return *this;
         }
+        // @return x s.t. x==*this in A/(r)
         elem& operator%=(const elem r){//mod(r) Θ(N(r))
             if(r==0)return *this;
-            auto [x,y]=r.mod_representative();
-            this->b%=y;
-            this->a%=r.norm();
+            const auto [x,y]=r.mod_representative();
+            const int s=r.a, t=r.b, n=r.norm();
+            a%=n;if(a<0)a+=n;
+            b%=y;if(b<0)b+=y;
 
-            for(int i=0;i<x;i++)for(int j=0;j<y;j++){
-                if((*this-elem(i,j)).is_divided_by(r)){
-                    this->a=i;
-                    this->b=j;
-                    return *this;
+            const int X=a/x*x;
+            int Y_dt,Y_s,mod_dt,mod_s,g_dt,g_s;
+            {
+                int u,v;
+                if(MOD4(d)==1){
+                    g_dt=std::gcd((d-1)/4*t,n);
+                    mod_dt=std::abs(n/g_dt);
+                    u=t*(d-1)/4/g_dt%mod_dt, v=(s+t)*X/g_dt%mod_dt;
                 }
+                else{
+                    const int g_dt=std::gcd(d*t,n);
+                    mod_dt=std::abs(n/g_dt);
+                    u=d*t/g_dt%mod_dt, v=s*X/g_dt%mod_dt;
+                }
+                //solve uY=v mod(mod_dt)
+                const int u_inv=solve_lineareq(u,mod_dt).first%mod_dt;
+                Y_dt=v*u_inv%mod_dt;
+                if(Y_dt<0)Y_dt+=mod_dt;
             }
-            assert(false);
+            {
+                //independent of the value of MOD4(d)
+                g_s=std::gcd(s,n);
+                mod_s=std::abs(n/g_s);
+                const int u=s/g_s%mod_s, v=t*X/g_s%mod_s;
+                //solve uY=v mod(mod_s)
+                const int u_inv=solve_lineareq(u,mod_s).first%mod_s;
+                Y_s=v*u_inv%mod_s;
+                if(Y_s<0)Y_s+=mod_s;
+            }
+
+            //Y mod(lcm(mod_dt,mod_s)) i.e. mod(y)
+            //Garner's algorithm
+            std::vector<long long> rem={Y_dt,Y_s},mods={mod_dt,mod_s};
+            int Y=crt(rem,mods).first;
+
+            //X+Y√d=0 mod(r)
+            a-=X;
+            b-=Y;
+            if(b<0)b+=y;
             return *this;
         }
         friend elem operator+(elem l,const elem r){
@@ -88,6 +116,7 @@ struct ring_of_integer{
         friend elem operator*(elem l,const elem r){
             return l*=r;
         }
+        // @return x s.t. x==l in A/(r)
         friend elem operator%(elem l,const elem r){//Θ(|N(r)|)
             return l%=r;
         }
@@ -119,6 +148,7 @@ struct ring_of_integer{
         bool is_integer()const{
             return b==0;
         }
+        // @return pair(a,b) s.t. {elem(x,y) | 0<=x<a, 0<=y<b} is a complete system of representatives in A/(*this).
         std::pair<int,int> mod_representative()const{//雪江整数2 命題1.10.7　[x,y]をreturnするとして， y√d==0 mod(*this) になるような取り方．
             if(a==0 && b==0)return std::make_pair(0,0);
             const int n=std::abs(norm());

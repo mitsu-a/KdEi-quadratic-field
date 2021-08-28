@@ -59,7 +59,7 @@ struct ring_of_integer{
             return *this;
         }
         // @return x s.t. x==*this in A/(r)
-        elem& operator%=(const elem r){//mod(r) Θ(N(r))
+        elem& operator%=(const elem r){//mod(r) Θ(log(max(r.a,r.b)))
             if(r==0)return *this;
             const auto [x,y]=r.mod_representative();
             const int s=r.a, t=r.b, n=r.norm();
@@ -117,7 +117,7 @@ struct ring_of_integer{
             return l*=r;
         }
         // @return x s.t. x==l in A/(r)
-        friend elem operator%(elem l,const elem r){//Θ(|N(r)|)
+        friend elem operator%(elem l,const elem r){
             return l%=r;
         }
         static elem add_id(){
@@ -173,65 +173,64 @@ struct ring_of_integer{
             gen[0]=0;
             gen[1]=0;
         }
-        ideal(std::vector<elem> vec){//O(|vec|*max(N(vec))^2) 程度．
-            for(int i=0;i<std::min<int>(2,vec.size());i++)gen[i]=vec[i];
-            int beg=2;
-            if(gen[0]==0){
-                if(gen[1]!=0)std::swap(gen[0],gen[1]);
-                else{
-                    for(;beg<(int)vec.size();beg++){
-                        if(vec[beg]!=0)break;
+        ideal(std::vector<elem> vec){//O((N(e)^2+N(e)*|vec|)*log(max(e.a,e.b,e.N))) 程度． (e:vecの元のうちノルム最小の元)
+            gen[0]=gen[1]=0;
+            for(elem val:vec)if(val!=0)gen[0]=val;
+            if(gen[0]==0)return;
+            for(elem val:vec)if(val!=0 && std::abs(val.norm())<std::abs(gen[0].norm()))gen[0]=val;
+
+            auto [x,y]=gen[0].mod_representative();
+
+            //幅優先探索：O(N(gen[0])*|vec|*log(max(a,b,N)))
+            int cnt=0;
+            std::queue<elem> q;
+            q.emplace(0);
+            bool seen[x][y]={};
+            seen[0][0]=true;
+            //sを用いた遷移：+s,-s,+s√d,-s√d
+            while(!q.empty()){
+                cnt++;
+                elem now=q.front();q.pop();
+                for(elem edge:vec){
+                    elem ne[]={now+edge,now-edge,now+edge*elem(0,1),now-edge*elem(0,1)};
+                    for(int i=0;i<4;i++){
+                        ne[i]%=gen[0];
+                        if(!seen[ne[i].a][ne[i].b]){
+                            seen[ne[i].a][ne[i].b]=true;
+                            q.emplace(ne[i]);
+                        }
                     }
-                    if(beg==(int)vec.size())return;
-                    std::swap(vec[beg],gen[0]);
                 }
             }
-            if(gen[0]==0)std::swap(gen[0],gen[1]);
 
-            for(int i=beg;i<(int)vec.size();i++){
-                //A/<gen[0]>において， <gen[1],vec[i]> は単項生成なはずなので，その生成元を求める．
-                gen[1]%=gen[0];
-                vec[i]%=gen[0];
-                auto [l,r]=gen[0].mod_representative();
-                auto make_next=[&](elem t)->std::vector<elem>{
-                    return {(t+gen[1])%gen[0],(t+gen[1]*elem(0,1))%gen[0],(t+vec[i])%gen[0],(t+vec[i]*elem(0,1))%gen[0]};
-                };
-                std::vector<elem> values;
-                bool seen[l][r]={};
-                seen[0][0]=true;
-                std::queue<elem> q;
+            //O(N(gen[0])^2*log(max(a,b,N)))
+            for(int i=0;i<x;i++)for(int j=0;j<y;j++)if(seen[i][j]){
+                elem val(i,j);
+                int val_cnt=0;
+                const elem edge[]={val,-val,val*elem(0,1),-val*elem(0,1)};
+
+                //幅優先探索 O(N(gen[0])*log(max(a,b,N)))
+                bool al[x][y]={};
+                al[0][0]=true;
                 q.emplace(0);
                 while(!q.empty()){
+                    val_cnt++;
                     elem now=q.front();q.pop();
-                    values.emplace_back(now);
-                    for(elem ne:make_next(now))if(!seen[ne.a][ne.b]){
-                        seen[ne.a][ne.b]=true;
-                        q.emplace(ne);
-                    }
-                }
-                for(elem val:values){
-                    auto make_next_2=[&](elem t)->std::vector<elem>{
-                        return {(t+val)%gen[0],(t+val*elem(0,1))%gen[0]};
-                    };
-                    for(int i=0;i<l;i++)for(int j=0;j<r;j++)seen[i][j]=false;
-                    seen[0][0]=true;
-                    std::queue<elem> q;
-                    q.emplace(0);
-                    int cnt=0;
-                    while(!q.empty()){
-                        elem now=q.front();q.pop();
-                        cnt++;
-                        for(elem ne:make_next_2(now))if(!seen[ne.a][ne.b]){
-                            seen[ne.a][ne.b]=true;
+                    for(int k=0;k<4;k++){
+                        elem ne=now+edge[k];
+                        ne%=gen[0];
+                        if(!al[ne.a][ne.b]){
+                            al[ne.a][ne.b]=true;
                             q.emplace(ne);
                         }
                     }
-                    if(cnt==(int)values.size()){
-                        gen[1]=val;
-                        break;
-                    }
+                }
+                if(cnt==val_cnt){
+                    gen[1]=val;
+                    return;
                 }
             }
+            assert(false);
             return;
         }
         ideal operator+(const ideal &r)const{
@@ -241,7 +240,7 @@ struct ring_of_integer{
             return ideal({gen[0]*r.gen[0],gen[0]*r.gen[1],gen[1]*r.gen[0],gen[1]*r.gen[1]});
         }
         ideal operator/(const ideal &r)const{}//書く．
-        bool contains(elem x)const{//O(N(gen[0])^2) 
+        bool contains(elem x)const{//O(Nlog(max(a,b,N)))程度．ただし a,b,N は全て gen[0] のもの．
             x%=this->gen[0];
             if(x==0)return true;
             elem val=gen[1]%gen[0];
@@ -265,7 +264,7 @@ struct ring_of_integer{
             }
             return false;
         }
-        bool operator==(const ideal &r){//O(|N|^2)
+        bool operator==(const ideal &r){//O(Nlog(max(a,b,N)))．ただし各イデアルの gen[0] のもの．
             bool ok=true;
             ok&=this->contains(r.gen[0]);
             ok&=this->contains(r.gen[1]);
@@ -274,7 +273,7 @@ struct ring_of_integer{
             return ok;
         }
         //単項イデアルのみ
-        std::vector<ideal> prime_factorize(){//単項生成イデアルのみ． O(N^3)程度． アティマク演習
+        std::vector<ideal> prime_factorize(){//単項生成イデアルのみ． アティマク演習．
             assert(gen[1]==0);
             auto [x,y]=gen[0].mod_representative();
             bool al[x][y]={};
@@ -293,7 +292,7 @@ struct ring_of_integer{
                     seen[0][0]=true;
                     std::queue<elem> q;
                     q.emplace(0);
-                    while(!q.empty()){//O(N^2) make_nextでO(N)かかるため．
+                    while(!q.empty()){//O(N)
                         auto now=q.front();q.pop();
                         to_erase.emplace_back(now);
                         cnt++;

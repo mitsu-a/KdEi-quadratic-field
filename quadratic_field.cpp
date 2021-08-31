@@ -86,7 +86,7 @@ struct ring_of_integer{
                 if(Y_dt<0)Y_dt+=mod_dt;
             }
             {
-                //independent of the value of MOD4(d)
+                //MOD4(d)に依らない
                 g_s=std::gcd(s,n);
                 mod_s=std::abs(n/g_s);
                 const int u=s/g_s%mod_s, v=t*X/g_s%mod_s;
@@ -165,7 +165,6 @@ struct ring_of_integer{
             return this->is_divisor_of(l-r);
         }
     };
-
 
     struct ideal{
         elem gen[2];
@@ -272,9 +271,8 @@ struct ring_of_integer{
             ok&=r.contains(this->gen[1]);
             return ok;
         }
-        //単項イデアルのみ
-        std::vector<ideal> prime_factorize(){//単項生成イデアルのみ． アティマク演習．
-            assert(gen[1]==0);
+        // @return the vector of pairs(p,i) s.t. (*this) is a product of p^i.
+        std::vector<std::pair<ideal,int>> prime_factorize(){//単項生成イデアルのみ． アティマク演習．
             auto [x,y]=gen[0].mod_representative();
             bool al[x][y]={};
             al[0][0]=true;
@@ -309,10 +307,16 @@ struct ring_of_integer{
                     set.emplace(i,j);
                 }
             }
-            std::vector<ideal> res;
+            std::vector<std::pair<ideal,int>> res;
             res.reserve(set.size());
             for(auto t:set){
-                res.push_back(ideal({elem(t.first,t.second),elem(gen[0].a,gen[0].b)}));
+                int cnt=-1;
+                ideal J({1});
+                while(J.contains(gen[0]) && J.contains(gen[1])){
+                    J=J*ideal({gen[0],elem(t.first,t.second)});
+                    cnt++;
+                }
+                if(cnt)res.push_back({ideal({elem(t.first,t.second),gen[0]}),cnt});
             }
             return res;
         }

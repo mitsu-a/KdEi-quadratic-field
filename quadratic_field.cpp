@@ -5,13 +5,16 @@
 #include <assert.h>
 #include <numeric>
 #include <set>
-#include "garner's_algorithm.hpp"
-#include "linear_equation.hpp"
+#include "basic_functions.hpp"
 
 #define MOD4(d) (d%4+4)%4
 
 //d:平方因子を持たず，0でも1でもない整数
-//Remainder関数：64行目
+//Remainder関数（命題3.1.6）：112行目
+
+//その他の関数
+// a.conjugate():aの共役元を返す
+// a.norm():aのノルムを返す
 template<int &d>
 struct ring_of_integer{
     struct elem{
@@ -27,9 +30,6 @@ struct ring_of_integer{
         }
         int norm()const{
             return (*this * this->conjugate()).a;
-        }
-        int trace()const{
-            return (*this+this->conjugate).a;
         }
         friend bool operator==(const elem l,const elem r){
             return l.a==r.a && l.b==r.b;
@@ -60,56 +60,6 @@ struct ring_of_integer{
             }
             return *this;
         }
-        // @return x s.t. x==*this in A/(r)
-        elem& operator%=(const elem r){
-            assert(r!=0);
-            //R={a+b\alpha | 0<=a<u,u<=b<v}
-            const auto [u,v]=r.mod_representative();
-            const int s=r.a, t=r.b, n=std::abs(r.norm());
-            a%=n;if(a<0)a+=n;
-            b%=v;if(b<0)b+=v;
-
-            const int X=a/u*u;
-            int Y_dt,Y_s,mod_dt,mod_s,g_dt,g_s;
-            //solve (td/gcd(td,N(r)))Y \equiv Xs/gcd(td,N(r)) or (tD / gcd(tD,N(r)))Y \equiv -X(s+t)/gcd(tD,N(r)) (D=(1-d)/4)
-            {
-                const int D=(1-d)/4;
-                int u,v;
-                if(MOD4(d)==1){
-                    g_dt=std::gcd(t*D,n);
-                    mod_dt=n/g_dt;
-                    u=t*D/g_dt%mod_dt, v=-(s+t)*X/g_dt%mod_dt;
-                }
-                else{
-                    g_dt=std::gcd(t*d,n);
-                    mod_dt=n/g_dt;
-                    u=t*d/g_dt%mod_dt, v=s*X/g_dt%mod_dt;
-                }
-                //solve uY=v mod(mod_dt)
-                const int u_inv=solve_lineareq(u,mod_dt).first%mod_dt;
-                Y_dt=v*u_inv%mod_dt;
-                if(Y_dt<0)Y_dt+=mod_dt;
-            }
-            //solve (s/gcd(s,N(r)))Y \equiv Xt/gcd(s,N(r))
-            {
-                g_s=std::gcd(s,n);
-                mod_s=n/g_s;
-                const int u=s/g_s%mod_s, v=t*X/g_s%mod_s;
-                //solve uY=v mod(mod_s)
-                const int u_inv=solve_lineareq(u,mod_s).first%mod_s;
-                Y_s=v*u_inv%mod_s;
-                if(Y_s<0)Y_s+=mod_s;
-            }
-
-            //Y mod(lcm(mod_dt,mod_s)) i.e. mod(y)
-            std::vector<long long> rem={Y_dt,Y_s},mods={mod_dt,mod_s};
-            int Y=crt(rem,mods).first;
-
-            //X+Y√d=0 mod(r)
-            a-=X,b-=Y;
-            if(b<0)b+=v;
-            return *this;
-        }
         friend elem operator+(elem l,const elem r){
             return l+=r;
         }
@@ -118,16 +68,6 @@ struct ring_of_integer{
         }
         friend elem operator*(elem l,const elem r){
             return l*=r;
-        }
-        // @return x s.t. x==l in A/(r)
-        friend elem operator%(elem l,const elem r){
-            return l%=r;
-        }
-        static elem add_id(){
-            return {0,0};
-        }
-        static elem multi_id(){
-            return {1,0};
         }
         friend std::ostream& operator<<(std::ostream &os,const elem r){
             if(r.a==0 && r.b==0)os << 0;
@@ -164,8 +104,55 @@ struct ring_of_integer{
             }
             return std::make_pair(g,n/g);
         }
-        bool mod_eq(elem l,elem r)const{//l==r mod(*this)
-            return this->is_divisor_of(l-r);
+        // @return t s.t. t==val in A/(r)
+        friend elem Remainder(const elem val,const elem r){
+            assert(r!=0);
+            //R={a+b\alpha | 0<=a<u,u<=b<v}
+            const auto [u,v]=r.mod_representative();
+            const int s=r.a, t=r.b, n=std::abs(r.norm());//r=s+t\alpha
+            int a=val.a, b=val.b;//x=a+b\alpha
+            a%=n;if(a<0)a+=n;
+            b%=v;if(b<0)b+=v;
+
+            const int X=a/u*u;
+            int Y_dt,Y_s,mod_dt,mod_s,g_dt,g_s;
+            //solve (td/gcd(td,N(r)))Y \equiv Xs/gcd(td,N(r)) or (tD / gcd(tD,N(r)))Y \equiv -X(s+t)/gcd(tD,N(r)) (D=(1-d)/4)
+            {
+                const int D=(1-d)/4;
+                int u,v;
+                if(MOD4(d)==1){
+                    g_dt=std::gcd(t*D,n);
+                    mod_dt=n/g_dt;
+                    u=t*D/g_dt%mod_dt, v=-(s+t)*X/g_dt%mod_dt;
+                }
+                else{
+                    g_dt=std::gcd(t*d,n);
+                    mod_dt=n/g_dt;
+                    u=t*d/g_dt%mod_dt, v=s*X/g_dt%mod_dt;
+                }
+                //solve uY=v mod(mod_dt)
+                const int u_inv=solve_lineareq(u,mod_dt).first%mod_dt;
+                Y_dt=v*u_inv%mod_dt;
+                if(Y_dt<0)Y_dt+=mod_dt;
+            }
+            //solve (s/gcd(s,N(r)))Y \equiv Xt/gcd(s,N(r))
+            {
+                g_s=std::gcd(s,n);
+                mod_s=n/g_s;
+                const int u=s/g_s%mod_s, v=t*X/g_s%mod_s;
+                //solve uY=v mod(mod_s)
+                const int u_inv=solve_lineareq(u,mod_s).first%mod_s;
+                Y_s=v*u_inv%mod_s;
+                if(Y_s<0)Y_s+=mod_s;
+            }
+
+            //Y mod(lcm(mod_dt,mod_s)) i.e. mod(v)
+            int Y=garner(Y_dt,mod_dt,Y_s,mod_s);
+
+            //X+Y√d=0 mod(r)
+            a-=X,b-=Y;
+            if(b<0)b+=v;
+            return elem(a,b);
         }
     };
 
@@ -196,7 +183,7 @@ struct ring_of_integer{
                 for(elem edge:vec){
                     elem ne[]={now+edge,now-edge,now+edge*elem(0,1),now-edge*elem(0,1)};
                     for(int i=0;i<4;i++){
-                        ne[i]%=gen[0];
+                        ne[i]=Remainder(ne[i],gen[0]);
                         if(!seen[ne[i].a][ne[i].b]){
                             seen[ne[i].a][ne[i].b]=true;
                             q.emplace(ne[i]);
@@ -220,7 +207,7 @@ struct ring_of_integer{
                     elem now=q.front();q.pop();
                     for(int k=0;k<4;k++){
                         elem ne=now+edge[k];
-                        ne%=gen[0];
+                        ne=Remainder(ne,gen[0]);
                         if(!al[ne.a][ne.b]){
                             al[ne.a][ne.b]=true;
                             q.emplace(ne);
@@ -243,14 +230,14 @@ struct ring_of_integer{
         }
         ideal operator/(const ideal &r)const{}//書く．
         bool contains(elem x)const{//O(Nlog(max(a,b,N)))程度．ただし a,b,N は全て gen[0] のもの．
-            x%=this->gen[0];
+            x=Remainder(x,this->gen[0]);
             if(x==0)return true;
-            elem val=gen[1]%gen[0];
+            elem val=Remainder(gen[1],gen[0]);
             auto [l,r]=gen[0].mod_representative();
             //(A/I)/(J/I) ≅ A/J を使う．
             //x \in <val> (A/I において) を判定すればいい．
             auto make_next=[&](elem t)->std::vector<elem>{
-                return {(t+val)%gen[0],(t+val*elem(0,1))%gen[0]};
+                return {Remainder(t+val,gen[0]),Remainder(t+val*elem(0,1),gen[0])};
             };
             bool seen[l][r]={};
             seen[0][0]=true;
@@ -285,7 +272,7 @@ struct ring_of_integer{
                 else{
                     elem val=elem(i,j);
                     auto make_next=[&](elem t)->std::vector<elem>{
-                        return {(t+val)%gen[0],(t+val*elem(0,1))%gen[0]};
+                        return {Remainder(t+val,gen[0]),Remainder(t+val*elem(0,1),gen[0])};
                     };
                     int cnt=0;
                     std::vector<elem> to_erase;

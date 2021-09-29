@@ -10,6 +10,8 @@
 
 #define MOD4(d) (d%4+4)%4
 
+//d:平方因子を持たず，0でも1でもない整数
+//Remainder関数：64行目
 template<int &d>
 struct ring_of_integer{
     struct elem{
@@ -59,36 +61,39 @@ struct ring_of_integer{
             return *this;
         }
         // @return x s.t. x==*this in A/(r)
-        elem& operator%=(const elem r){//mod(r) Θ(log(max(r.a,r.b)))
-            if(r==0)return *this;
-            const auto [x,y]=r.mod_representative();
-            const int s=r.a, t=r.b, n=r.norm();
+        elem& operator%=(const elem r){
+            assert(r!=0);
+            //R={a+b\alpha | 0<=a<u,u<=b<v}
+            const auto [u,v]=r.mod_representative();
+            const int s=r.a, t=r.b, n=std::abs(r.norm());
             a%=n;if(a<0)a+=n;
-            b%=y;if(b<0)b+=y;
+            b%=v;if(b<0)b+=v;
 
-            const int X=a/x*x;
+            const int X=a/u*u;
             int Y_dt,Y_s,mod_dt,mod_s,g_dt,g_s;
+            //solve (td/gcd(td,N(r)))Y \equiv Xs/gcd(td,N(r)) or (tD / gcd(tD,N(r)))Y \equiv -X(s+t)/gcd(tD,N(r)) (D=(1-d)/4)
             {
+                const int D=(1-d)/4;
                 int u,v;
                 if(MOD4(d)==1){
-                    g_dt=std::gcd((d-1)/4*t,n);
-                    mod_dt=std::abs(n/g_dt);
-                    u=t*(d-1)/4/g_dt%mod_dt, v=(s+t)*X/g_dt%mod_dt;
+                    g_dt=std::gcd(t*D,n);
+                    mod_dt=n/g_dt;
+                    u=t*D/g_dt%mod_dt, v=-(s+t)*X/g_dt%mod_dt;
                 }
                 else{
-                    const int g_dt=std::gcd(d*t,n);
-                    mod_dt=std::abs(n/g_dt);
-                    u=d*t/g_dt%mod_dt, v=s*X/g_dt%mod_dt;
+                    g_dt=std::gcd(t*d,n);
+                    mod_dt=n/g_dt;
+                    u=t*d/g_dt%mod_dt, v=s*X/g_dt%mod_dt;
                 }
                 //solve uY=v mod(mod_dt)
                 const int u_inv=solve_lineareq(u,mod_dt).first%mod_dt;
                 Y_dt=v*u_inv%mod_dt;
                 if(Y_dt<0)Y_dt+=mod_dt;
             }
+            //solve (s/gcd(s,N(r)))Y \equiv Xt/gcd(s,N(r))
             {
-                //MOD4(d)に依らない
                 g_s=std::gcd(s,n);
-                mod_s=std::abs(n/g_s);
+                mod_s=n/g_s;
                 const int u=s/g_s%mod_s, v=t*X/g_s%mod_s;
                 //solve uY=v mod(mod_s)
                 const int u_inv=solve_lineareq(u,mod_s).first%mod_s;
@@ -97,14 +102,12 @@ struct ring_of_integer{
             }
 
             //Y mod(lcm(mod_dt,mod_s)) i.e. mod(y)
-            //Garner's algorithm
             std::vector<long long> rem={Y_dt,Y_s},mods={mod_dt,mod_s};
             int Y=crt(rem,mods).first;
 
             //X+Y√d=0 mod(r)
-            a-=X;
-            b-=Y;
-            if(b<0)b+=y;
+            a-=X,b-=Y;
+            if(b<0)b+=v;
             return *this;
         }
         friend elem operator+(elem l,const elem r){
@@ -148,9 +151,9 @@ struct ring_of_integer{
         bool is_integer()const{
             return b==0;
         }
-        // @return pair(a,b) s.t. {elem(x,y) | 0<=x<a, 0<=y<b} is a complete system of representatives in A/(*this).
-        std::pair<int,int> mod_representative()const{//雪江整数2 命題1.10.7　[x,y]をreturnするとして， y√d==0 mod(*this) になるような取り方．
-            if(a==0 && b==0)return std::make_pair(0,0);
+        // @return pair(u,v) s.t. {elem(x,y) | 0<=x<u, 0<=y<v} is a complete system of representatives in A/(*this).
+        std::pair<int,int> mod_representative()const{
+            assert((*this)!=0);
             const int n=std::abs(norm());
             int g;
             if(MOD4(d)==1){

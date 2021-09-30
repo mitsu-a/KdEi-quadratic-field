@@ -248,7 +248,6 @@ struct ring_of_integer{
         ideal operator*(const ideal &r)const{
             return ideal({gen[0]*r.gen[0],gen[0]*r.gen[1],gen[1]*r.gen[0],gen[1]*r.gen[1]});
         }
-        ideal operator/(const ideal &r)const{}//書く．
         bool contains(elem x)const{//O(Nlog(max(a,b,N)))程度．ただし a,b,N は全て gen[0] のもの．
             x=Remainder(x,this->gen[0]);
             if(x==0)return true;

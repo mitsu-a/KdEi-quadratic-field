@@ -7,10 +7,9 @@
 #include <set>
 #include "basic_functions.hpp"
 
-#define MOD4(d) (d%4+4)%4
-
 //d:平方因子を持たず，0でも1でもない整数
 //Remainder関数（命題3.1.6）：108行目
+//Generator関数(命題3.2.2)に相当する関数：166行目
 //その他の関数
 // a.conjugate():aの共役元を返す
 // a.norm():aのノルムを返す
@@ -26,7 +25,7 @@ struct ring_of_integer{
             return {-a,-b};
         }
         elem conjugate()const{
-            return (MOD4(d)==1 ? elem(a+b,-b):elem(a,-b));
+            return (MOD(d,4)==1 ? elem(a+b,-b):elem(a,-b));
         }
         T norm()const{
             return (*this * this->conjugate()).a;
@@ -48,7 +47,7 @@ struct ring_of_integer{
             return *this;
         }
         elem& operator*=(const elem r){
-            if(MOD4(d)==1){
+            if(MOD(d,4)==1){
                 T old_a=this->a;
                 this->a=this->a*r.a + this->b*r.b*(d-1)/4;
                 this->b=this->b*r.b + this->b*r.a + old_a*r.b;
@@ -71,9 +70,9 @@ struct ring_of_integer{
         }
         friend std::ostream& operator<<(std::ostream &os,const elem r){
             if(r.a==0 && r.b==0)os << 0;
-            else if(r.a==0)os << r.b << (MOD4(d)==1 ? "\\frac{1+\\sqrt{":"\\sqrt{") << d << (MOD4(d)==1 ? "}}{2}":"}");
+            else if(r.a==0)os << r.b << (MOD(d,4)==1 ? "\\frac{1+\\sqrt{":"\\sqrt{") << d << (MOD(d,4)==1 ? "}}{2}":"}");
             else if(r.b==0)os << r.a;
-            else os << r.a << (r.b>0 ? "+":"") << r.b << (MOD4(d)==1 ? "\\frac{1+\\sqrt{":"\\sqrt{") << d << (MOD4(d)==1 ? "}}{2}":"}");
+            else os << r.a << (r.b>0 ? "+":"") << r.b << (MOD(d,4)==1 ? "\\frac{1+\\sqrt{":"\\sqrt{") << d << (MOD(d,4)==1 ? "}}{2}":"}");
             return os;
         }
         bool is_divided_by(const elem r)const{
@@ -96,7 +95,7 @@ struct ring_of_integer{
             assert((*this)!=0);
             const T n=std::abs(norm());
             T g;
-            if(MOD4(d)==1){
+            if(MOD(d,4)==1){
                 g=std::gcd(a,(d-1)/4*b);
             }
             else{
@@ -120,7 +119,7 @@ struct ring_of_integer{
             {
                 const T D=(1-d)/4;
                 T u,v;
-                if(MOD4(d)==1){
+                if(MOD(d,4)==1){
                     g_dt=std::gcd(t*D,n);
                     mod_dt=n/g_dt;
                     u=t*D/g_dt%mod_dt, v=-(s+t)*X/g_dt%mod_dt;
@@ -162,63 +161,84 @@ struct ring_of_integer{
             gen[0]=0;
             gen[1]=0;
         }
-        ideal(std::vector<elem> vec){//O((N(e)^2+N(e)*|vec|)*log(max(e.a,e.b,e.N))) 程度． (e:vecの元のうちノルム最小の元)
-            gen[0]=gen[1]=0;
-            for(elem val:vec)if(val!=0)gen[0]=val;
-            if(gen[0]==0)return;
-            for(elem val:vec)if(val!=0 && std::abs(val.norm())<std::abs(gen[0].norm()))gen[0]=val;
+        //計算量はO((N^2+|F|N)logN)
+        //Fと同じイデアルを生成する2元を見つけ，gen[0]及びgen[1]とする
+        ideal(std::vector<elem> F){
+            std::vector<elem> tmp;
+            for(elem val:F)if(val!=0)tmp.emplace_back(val);
+            F=std::move(tmp);
+            if(F.empty()){
+                gen[0]=gen[1]=0;
+                return;
+            }
 
-            auto [x,y]=gen[0].mod_representative();
+            //xにノルムの絶対値が最小の元を入れる
+            elem x=F.front();
+            T n=std::abs(x.norm());
+            for(elem val:F)if(n>std::abs(val.norm())){
+                x=val;
+                n=std::abs(val.norm());
+            }
 
-            //幅優先探索：O(N(gen[0])*|vec|*log(max(a,b,N)))
-            T cnt=0;
+            //擬似コードにおけるIを実際に集合として管理する代わりに，「既に現れた」ことを示すbool値の配列を用いる
+            //seen_I[a][b]=true <=> a+b\alphaがIに含まれる
+            auto [u,v]=x.mod_representative();
+            bool seen_I[u][v]={};
             std::queue<elem> q;
+
+            seen_I[0][0]=true;
+            T size_I=1;
             q.emplace(0);
-            bool seen[x][y]={};
-            seen[0][0]=true;
-            //sを用いた遷移：+s,-s,+s√d,-s√d
+
             while(!q.empty()){
-                cnt++;
-                elem now=q.front();q.pop();
-                for(elem edge:vec){
-                    elem ne[]={now+edge,now-edge,now+edge*elem(0,1),now-edge*elem(0,1)};
-                    for(int i=0;i<4;i++){
-                        ne[i]=Remainder(ne[i],gen[0]);
-                        if(!seen[ne[i].a][ne[i].b]){
-                            seen[ne[i].a][ne[i].b]=true;
-                            q.emplace(ne[i]);
-                        }
+                //qの先頭元をwとする
+                elem w=q.front();
+                q.pop();
+
+                for(elem t:F)for(elem z:{Remainder(w+t,x),Remainder(w+t*elem(0,1),x)}){
+                    //zがIに含まれない場合
+                    if(!seen_I[z.a][z.b]){
+                        seen_I[z.a][z.b]=true;
+                        size_I++;
+                        q.emplace(z);
                     }
                 }
             }
 
-            //O(N(gen[0])^2*log(max(a,b,N)))
-            for(T i=0;i<x;i++)for(T j=0;j<y;j++)if(seen[i][j]){
-                elem val(i,j);
-                T val_cnt=0;
-                const elem edge[]={val,-val,val*elem(0,1),-val*elem(0,1)};
+            //Xの代わりにseen_Xを管理する
+            bool seen_X[u][v]={};
+            for(T a=0;a<u;a++)for(T b=0;b<v;b++)if(seen_I[a][b] && !seen_X[a][b]){
+                elem t=elem(a,b);
+                //Jの代わりにseen_Jを管理する
+                bool seen_J[u][v]={};
 
-                //幅優先探索 O(N(gen[0])*log(max(a,b,N)))
-                bool al[x][y]={};
-                al[0][0]=true;
+                seen_J[0][0]=true;
+                T size_J=1;
                 q.emplace(0);
                 while(!q.empty()){
-                    val_cnt++;
-                    elem now=q.front();q.pop();
-                    for(int k=0;k<4;k++){
-                        elem ne=now+edge[k];
-                        ne=Remainder(ne,gen[0]);
-                        if(!al[ne.a][ne.b]){
-                            al[ne.a][ne.b]=true;
-                            q.emplace(ne);
+                    //qの先頭元をwとする
+                    elem w=q.front();
+                    q.pop();
+                    //最後にXにJの元を加える代わりに，ここでXにwを加える
+                    seen_X[w.a][w.b]=true;
+
+                    for(elem z:{Remainder(w+t,x),Remainder(w+t*elem(0,1),x)}){
+                        //zがJに含まれない場合
+                        if(!seen_J[z.a][z.b]){
+                            seen_J[z.a][z.b]=true;
+                            size_J++;
+                            q.emplace(z);
                         }
                     }
                 }
-                if(cnt==val_cnt){
-                    gen[1]=val;
+                if(size_I==size_J){
+                    gen[0]=x;
+                    gen[1]=t;
                     return;
                 }
             }
+
+            //ここに到達する前に終了しているべきである
             assert(false);
             return;
         }

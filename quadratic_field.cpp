@@ -8,12 +8,10 @@
 #include "basic_functions.hpp"
 
 //d:平方因子を持たず，0でも1でもない整数
-//Remainder関数（命題3.1.6）：108行目
-//Generator関数（命題3.2.2）に相当する関数：166行目　（ここではイデアルのコンストラクタとして実装してある）
-//Contains関数：258行目　（ここでは，2つの生成元をGenerator関数により既に見つけてある場合について実装してある）
-//その他の関数
-// a.conjugate():aの共役元を返す
-// a.norm():aのノルムを返す
+//Remainder関数（命題3.1.6）：112行目
+//Generator関数（命題3.2.2）に相当する関数：170行目　（ここではイデアルのコンストラクタとして実装してある）
+//Contains関数：255行目　（ここでは，2つの生成元をGenerator関数により既に見つけてある場合について実装してある）
+//PrimeFactorize関数：295行目
 
 template<long long &d,typename T=long long>
 struct ring_of_integer{
@@ -168,14 +166,13 @@ struct ring_of_integer{
             gen[0]=0;
             gen[1]=0;
         }
-        //計算量はO((N^2+|F|N)logN)
         //Fと同じイデアルを生成する2元を見つけ，gen[0]及びgen[1]とする
         ideal(std::vector<elem> F){
             std::vector<elem> tmp;
             for(elem val:F)if(val!=0)tmp.emplace_back(val);
             F=std::move(tmp);
-            if(F.empty()){
-                gen[0]=gen[1]=0;
+            if(F.size()<=2ul){
+                for(int i=0;i<(int)F.size();i++)gen[i]=F[i];
                 return;
             }
 
@@ -291,62 +288,58 @@ struct ring_of_integer{
         bool Contains(ideal J){
             return Contains(J.gen[0]) && Contains(J.gen[1]);
         }
-        bool operator==(const ideal &r){//O(Nlog(max(a,b,N)))．ただし各イデアルの gen[0] のもの．
-            bool ok=true;
-            ok&=this->Contains(r.gen[0]);
-            ok&=this->Contains(r.gen[1]);
-            ok&=r.Contains(this->gen[0]);
-            ok&=r.Contains(this->gen[1]);
-            return ok;
+        bool operator==(ideal &r){
+            return this->Contains(r) && r.Contains(*this);
         }
         // @return the vector of pairs(p,i) s.t. (*this) is a product of p^i.
-        std::vector<std::pair<ideal,int>> prime_factorize(){
-            auto [x,y]=gen[0].mod_representative();
-            bool al[x][y]={};
-            al[0][0]=true;
-            std::set<std::pair<T,T>> set;
-            for(T i=0;i<x;i++)for(T j=0;j<y;j++){
-                if(al[i][j])continue;
+        std::vector<std::pair<ideal,int>> PrimeFactorize(){
+            auto [u,v]=gen[0].mod_representative();
+            //X,Yを管理する代わりに，seen_X,seen_Yという配列を管理する．
+            bool seen_X[u][v]={},seen_Y[u][v]={};
+            for(T i=0;i<u;i++)for(T j=0;j<v;j++){
+                //tがXの要素なら次へ．
+                if(seen_X[i][j])continue;
                 else{
-                    elem val=elem(i,j);
-                    auto make_next=[&](elem t)->std::vector<elem>{
-                        return {Remainder(t+val,gen[0]),Remainder(t+val*elem(0,1),gen[0])};
-                    };
-                    T cnt=0;
-                    std::vector<elem> to_erase;
-                    bool seen[x][y]={};
-                    seen[0][0]=true;
+                    elem t(i,j);
+                    //I,seen_Iを同時に管理する．
+                    std::vector<elem> I={0};
+                    bool seen_I[u][v]={};
+                    seen_I[0][0]=true;
                     std::queue<elem> q;
                     q.emplace(0);
-                    while(!q.empty()){//O(N)
-                        auto now=q.front();q.pop();
-                        to_erase.emplace_back(now);
-                        cnt++;
-                        for(elem ne:make_next(now))if(!seen[ne.a][ne.b]){
-                            seen[ne.a][ne.b]=true;
-                            q.emplace(ne);
+                    while(!q.empty()){
+                        auto w=q.front();q.pop();
+                        for(elem z:{Remainder(w+t,gen[0]),Remainder(w+t*elem(0,1),gen[0])}){
+                            //zがIに含まれない時
+                            if(!seen_I[z.a][z.b]){
+                                seen_I[z.a][z.b]=true;
+                                I.emplace_back(z);
+                                q.emplace(z);
+                            }
                         }
                     }
-                    if(cnt==std::abs(gen[0].norm()))continue;
-                    for(elem t:to_erase){//O(NlogN)
-                        set.erase({t.a,t.b});
-                        al[t.a][t.b]=true;
+                    //Iが全体に一致した場合は次の元へ．
+                    if((T)I.size()==std::abs(gen[0].norm()))continue;
+                    for(elem w:I){
+                        seen_X[w.a][w.b]=true;
+                        seen_Y[w.a][w.b]=false;
                     }
-                    set.emplace(i,j);
+                    seen_Y[t.a][t.b]=true;
                 }
             }
-            std::vector<std::pair<ideal,int>> res;
-            res.reserve(set.size());
-            for(auto t:set){
+            std::vector<std::pair<ideal,int>> S;
+            //Yの要素を走査する
+            for(int i=0;i<u;i++)for(int j=0;j<v;j++)if(seen_Y[i][j]){
+                elem t(i,j);
                 int cnt=0;
-                ideal J({gen[0],elem(t.first,t.second)});
-                while(J.contains(gen[0]) && J.Contains(gen[1])){
-                    J=J*ideal({gen[0],elem(t.first,t.second)});
+                ideal J({gen[0],t});
+                while(J.Contains(*this)){
+                    J=J*ideal({gen[0],t});
                     cnt++;
                 }
-                if(cnt)res.push_back({ideal({elem(t.first,t.second),gen[0]}),cnt});
+                if(cnt)S.push_back({ideal({gen[0],t}),cnt});
             }
-            return res;
+            return S;
         }
     };
 };

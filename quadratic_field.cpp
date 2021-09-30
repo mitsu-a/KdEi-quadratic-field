@@ -9,7 +9,8 @@
 
 //d:平方因子を持たず，0でも1でもない整数
 //Remainder関数（命題3.1.6）：108行目
-//Generator関数(命題3.2.2)に相当する関数：166行目
+//Generator関数（命題3.2.2）に相当する関数：166行目　（ここではイデアルのコンストラクタとして実装してある）
+//Contains関数：258行目　（ここでは，2つの生成元をGenerator関数により既に見つけてある場合について実装してある）
 //その他の関数
 // a.conjugate():aの共役元を返す
 // a.norm():aのノルムを返す
@@ -89,6 +90,12 @@ struct ring_of_integer{
         }
         bool is_integer()const{
             return b==0;
+        }
+        friend void swap(elem &l,elem &r){
+            const elem x=r;
+            r=l;
+            l=x;
+            return;
         }
         // @return pair(u,v) s.t. {elem(x,y) | 0<=x<u, 0<=y<v} is a complete system of representatives in A/(*this).
         std::pair<T,T> mod_representative()const{
@@ -248,36 +255,48 @@ struct ring_of_integer{
         ideal operator*(const ideal &r)const{
             return ideal({gen[0]*r.gen[0],gen[0]*r.gen[1],gen[1]*r.gen[0],gen[1]*r.gen[1]});
         }
-        bool contains(elem x)const{//O(Nlog(max(a,b,N)))程度．ただし a,b,N は全て gen[0] のもの．
-            x=Remainder(x,this->gen[0]);
+        bool Contains(elem x){
+            if(gen[0]==0)swap(gen[0],gen[1]);
+            if(gen[0]==0)return x==0;
+
+            //零でない，ノルムの小さい方の元をgen[0]とする．
+            if(gen[1]!=0 && std::abs(gen[0].norm()) > std::abs(gen[1].norm()))swap(gen[0],gen[1]);
+            gen[1]=Remainder(gen[1],gen[0]);
+            auto [u,v]=gen[0].mod_representative();
+
+            x=Remainder(x,gen[0]);
+
             if(x==0)return true;
-            elem val=Remainder(gen[1],gen[0]);
-            auto [l,r]=gen[0].mod_representative();
-            //(A/I)/(J/I) ≅ A/J を使う．
-            //x \in <val> (A/I において) を判定すればいい．
-            auto make_next=[&](elem t)->std::vector<elem>{
-                return {Remainder(t+val,gen[0]),Remainder(t+val*elem(0,1),gen[0])};
-            };
-            bool seen[l][r]={};
+            //Iを管理する代わりにseenを管理する
+            bool seen[u][v]={};
             seen[0][0]=true;
             std::queue<elem> q;
             q.emplace(0);
+
             while(!q.empty()){
-                elem now=q.front();q.pop();
-                for(elem ne:make_next(now))if(!seen[ne.a][ne.b]){
-                    if(ne==x)return true;
-                    seen[ne.a][ne.b]=true;
-                    q.emplace(ne);
+                //qの先頭元をwとする．
+                elem w=q.front();q.pop();
+                for(elem z:{Remainder(w+gen[1],gen[0]),Remainder(w+gen[1]*elem(0,1),gen[0])}){
+                    //xがIに含まれない場合
+                    if(!seen[z.a][z.b]){
+                        if(z==x)return true;
+                        seen[z.a][z.b]=true;
+                        q.emplace(z);
+                    }
                 }
             }
+            //xがIに含まれるならば，ここまでのどこかでtrueがreturnされているはずである．
             return false;
+        }
+        bool Contains(ideal J){
+            return Contains(J.gen[0]) && Contains(J.gen[1]);
         }
         bool operator==(const ideal &r){//O(Nlog(max(a,b,N)))．ただし各イデアルの gen[0] のもの．
             bool ok=true;
-            ok&=this->contains(r.gen[0]);
-            ok&=this->contains(r.gen[1]);
-            ok&=r.contains(this->gen[0]);
-            ok&=r.contains(this->gen[1]);
+            ok&=this->Contains(r.gen[0]);
+            ok&=this->Contains(r.gen[1]);
+            ok&=r.Contains(this->gen[0]);
+            ok&=r.Contains(this->gen[1]);
             return ok;
         }
         // @return the vector of pairs(p,i) s.t. (*this) is a product of p^i.
@@ -319,9 +338,9 @@ struct ring_of_integer{
             std::vector<std::pair<ideal,int>> res;
             res.reserve(set.size());
             for(auto t:set){
-                int cnt=-1;
-                ideal J({1});
-                while(J.contains(gen[0]) && J.contains(gen[1])){
+                int cnt=0;
+                ideal J({gen[0],elem(t.first,t.second)});
+                while(J.contains(gen[0]) && J.Contains(gen[1])){
                     J=J*ideal({gen[0],elem(t.first,t.second)});
                     cnt++;
                 }

@@ -187,7 +187,7 @@ struct ring_of_integer{
             //擬似コードにおけるIを実際に集合として管理する代わりに，「既に現れた」ことを示すbool値の配列を用いる
             //seen_I[a][b]=true <=> a+b\alphaがIに含まれる
             auto [u,v]=x.mod_representative();
-            bool seen_I[u][v]={};
+            std::vector seen_I(u,std::vector<bool>(v));
             std::queue<elem> q;
 
             seen_I[0][0]=true;
@@ -210,11 +210,11 @@ struct ring_of_integer{
             }
 
             //Xの代わりにseen_Xを管理する
-            bool seen_X[u][v]={};
+            std::vector seen_X(u,std::vector<bool>(v));
             for(T a=0;a<u;a++)for(T b=0;b<v;b++)if(seen_I[a][b] && !seen_X[a][b]){
                 elem t=elem(a,b);
                 //Jの代わりにseen_Jを管理する
-                bool seen_J[u][v]={};
+                std::vector seen_J(u,std::vector<bool>(v));
 
                 seen_J[0][0]=true;
                 T size_J=1;
@@ -265,7 +265,7 @@ struct ring_of_integer{
 
             if(x==0)return true;
             //Iを管理する代わりにseenを管理する
-            bool seen[u][v]={};
+            std::vector seen(u,std::vector<bool>(v));
             seen[0][0]=true;
             std::queue<elem> q;
             q.emplace(0);
@@ -295,7 +295,7 @@ struct ring_of_integer{
         std::vector<std::pair<ideal,int>> PrimeFactorize(){
             auto [u,v]=gen[0].mod_representative();
             //X,Yを管理する代わりに，seen_X,seen_Yという配列を管理する．
-            bool seen_X[u][v]={},seen_Y[u][v]={};
+            std::vector seen_X(u,std::vector<bool>(v)),seen_Y(u,std::vector<bool>(v));
             for(T i=0;i<u;i++)for(T j=0;j<v;j++){
                 //tがXの要素なら次へ．
                 if(seen_X[i][j])continue;
@@ -303,7 +303,7 @@ struct ring_of_integer{
                     elem t(i,j);
                     //I,seen_Iを同時に管理する．
                     std::vector<elem> I={0};
-                    bool seen_I[u][v]={};
+                    std::vector seen_I(u,std::vector<bool>(v));
                     seen_I[0][0]=true;
                     std::queue<elem> q;
                     q.emplace(0);

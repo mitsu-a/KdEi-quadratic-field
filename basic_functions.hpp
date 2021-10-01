@@ -1,6 +1,7 @@
 #include <utility>
 #include <numeric>
 
+// @return x mod m
 long long MOD(long long x,long long m){
     x%=m;
     if(x<0)x+=m;

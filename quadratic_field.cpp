@@ -357,7 +357,6 @@ using std::endl;
 
 long long d=-5;
 
-//利用例．これは例3.3.4で実行したものと同じである．
 int main(){
     using A=ring_of_integer<d>;
     for(int p=2;p<=100;p++)if(is_prime(p)){

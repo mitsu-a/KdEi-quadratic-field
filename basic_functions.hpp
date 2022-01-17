@@ -1,11 +1,24 @@
+#ifndef BASIC_FUNCTIONS
+#define BASIC_FUNCTIONS
+
 #include <utility>
 #include <numeric>
+#include <atcoder/modint>
 
 // @return x mod m
 long long MOD(long long x,long long m){
     x%=m;
     if(x<0)x+=m;
     return x;
+}
+
+//オーバーフローに気をつける
+long long mypow(const long long a,const long long b){
+    if(b==1)return a;
+    auto r=mypow(a,b/2);
+    r*=r;
+    if(b%2==1)r*=a;
+    return r;
 }
 
 // @return pair(x,y) s.t. ax+by=gcd(a,b)
@@ -29,3 +42,16 @@ long long garner(long long a1,long long m1,long long a2,long long m2){
         return MOD(a1+(a2-a1)/g*m1*p,m1/g*m2);
     }
 }
+
+template<int m>
+std::ostream& operator<<(std::ostream &os,const atcoder::static_modint<m> v){
+    os << v.val();
+    return os;
+}
+template<int id>
+std::ostream& operator<<(std::ostream &os,const atcoder::dynamic_modint<-1> v){
+    os << v.val();
+    return os;
+}
+
+#endif // BASIC_FUNCTIONS

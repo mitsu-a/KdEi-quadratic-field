@@ -53,10 +53,7 @@ struct polynomial_ring{
             size_t sz=1;
             for(size_t i=0;i<this->size();i++){
                 (*this)[i]+=r[i];
-                if(typeid(T)==typeid(double)){
-                    if(std::abs((*this)[i])>1e-8)sz=i+1;
-                }
-                else if((*this)[i]!=0)sz=i+1;
+                if((*this)[i]!=0)sz=i+1;
             }
             this->resize(sz);
             return *this;
@@ -66,13 +63,14 @@ struct polynomial_ring{
             size_t sz=1;
             for(size_t i=0;i<this->size();i++){
                 (*this)[i]-=r[i];
-                if(typeid(T)==typeid(double)){
-                    if(std::abs((*this)[i])>1e-8)sz=i+1;
-                }
-                else if((*this)[i]!=0)sz=i+1;
+                if((*this)[i]!=0)sz=i+1;
             }
             this->resize(sz);
             return *this;
+        }
+        elem operator-(const elem r){
+            auto res=*this;
+            return res-=r;
         }
         elem& operator*=(const T r){
             if(r==0){
@@ -236,6 +234,7 @@ P<T> gcd_of_poly(P<T> x,P<T> y){
         }
         swap(x,y);
     }
+    y.monicize();
     return y;
 }
 
@@ -267,28 +266,43 @@ P<T> MODPOW(P<T> f,long long n,const P<T> &mod){
 }
 
 //6.2節
+//(g,i)：g^i
 template<typename T>
 vector<std::pair<P<T>,int>> square_free_decomposition(P<T> f){
     vector<std::pair<P<T>,int>> res;
     P<T> flat=f/gcd_of_poly<T>(f,f.derivative());
     int m=0;
     while(flat.deg()>0){
-        print_poly<T>(f);
-        print_poly<T>(flat);
-        cout << "waaaaa ";
-        print_poly<T>(MOD<T>(f,flat));
         while(MOD<T>(f,flat).deg()==-1){
-            cout << "D\n";
             f=f/flat;
             m++;
         }
         P<T> flat1=gcd_of_poly<T>(f,flat);
-        cout << "flat1 ";
-        print_poly<T>(flat1);
         P<T> g=flat/flat1;
         flat=flat1;
         res.emplace_back(g,m);
     }
+    return res;
+}
+
+//6.5節 distinct degree factorization
+//f：無平方な多項式
+//(f_i,i)：i次の既約多項式
+//標数p
+template<typename T>
+vector<std::pair<P<T>,int>> distinct_degree_factorization(P<T> f,const int p){
+    vector<std::pair<P<T>,int>> res;
+    P<T> w({0,1}),x({0,1});//x
+    for(int i=1;2*i<=f.deg();i++){
+        w=MODPOW<T>(w,p,f);//x^(p^i)
+        P<T> g=gcd_of_poly<T>(f,w-x);//x^(p^i)-x
+        if(g.deg()>0){
+            res.emplace_back(g,i);
+            f=f/g;
+            w=MOD<T>(w,f);
+        }
+    }
+    if(f.deg()>0)res.emplace_back(f,f.deg());
     return res;
 }
 
@@ -319,6 +333,22 @@ vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
     assert(false);
 }
 
+//標数p
+//p^(結果に現れる最大次数)がオーバーフローしない必要がある
+template<typename T>
+vector<std::pair<P<T>,int>> factorize(P<T> f,const int p){
+    auto sqf=square_free_decomposition<T>(f);
+    vector<std::pair<P<T>,int>> res;
+    for(auto [f,i]:sqf){
+        for(auto [g,d]:distinct_degree_factorization<T>(f,p)){
+            for(auto &h:CZ_factorize<T>(g,d,p)){
+                res.emplace_back(h,i);
+            }
+        }
+    }
+    return res;
+}
+
 
 int main(){
     mint::set_mod(10007);
@@ -331,15 +361,10 @@ int main(){
     using Fpx=polynomial_ring<mint>;
     Fpx::elem f({mint(a),1}),ff({mint(a),0,1});//x+a
     f=f*f*f*ff*ff*ff*ff;
-    print_poly<mint>(f);
-    auto res=square_free_decomposition<mint>(f);
-    for(auto [g,m]:res){
+    auto v=factorize<mint>(f,10007);
+    for(auto [g,i]:v){
         g.monicize();
-        cout << m << ' ';
+        cout << i << ' ';
         print_poly<mint>(g);
     }
-    
-    Fpx::elem g({27});
-    Fpx::elem h({1,3336});
-    print_poly<mint>(gcd_of_poly<mint>(g,h));
 }

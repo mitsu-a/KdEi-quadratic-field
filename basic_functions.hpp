@@ -49,7 +49,7 @@ std::ostream& operator<<(std::ostream &os,const atcoder::static_modint<m> v){
     return os;
 }
 template<int id>
-std::ostream& operator<<(std::ostream &os,const atcoder::dynamic_modint<-1> v){
+std::ostream& operator<<(std::ostream &os,const atcoder::dynamic_modint<id> v){
     os << v.val();
     return os;
 }

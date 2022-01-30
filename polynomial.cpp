@@ -86,6 +86,7 @@ struct polynomial_ring{
             auto res=*this;
             return res*=r;
         }
+        //愚直な積
         elem operator*(const elem &r)const{
             if(r.size()==1)return (*this)*(r[0]);
             else if(this->size()==1)return r*(*this)[0];
@@ -139,7 +140,10 @@ struct polynomial_ring{
             assert(res.size());
             return res;
         }
-
+        elem& monicize(){
+            *this*=1/this->back();
+            return *this;
+        }
         elem normal_form(const vector<elem> &G)const{
             elem res=*this;
             //while(res!=0)
@@ -211,7 +215,7 @@ template<typename T>
 using P=typename polynomial_ring<T>::elem;
 
 template<typename T>
-void print_poly(P<T> &x){
+void print_poly(P<T> x){
     if(x.deg()==-1){
         std::cout << "0\n";
         return;
@@ -219,7 +223,7 @@ void print_poly(P<T> &x){
     for(int i=0;i<=x.deg();i++){
         std::cout << x[i] << "x^" << i;
         if(i==x.deg())cout << '\n';
-        else if(true/*x[i+1]>=0*/)cout << '+';
+        else cout << '+';
     }
 }
 
@@ -235,12 +239,7 @@ P<T> gcd_of_poly(P<T> x,P<T> y){
     return y;
 }
 
-//書く！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！
-template<typename T>
-vector<P<T>> square_free_decomposition(P<T> f){
-    vector<P<T>> res;
 
-}
 
 //速くできる、はず　一旦妥協
 template<typename T>
@@ -267,16 +266,42 @@ P<T> MODPOW(P<T> f,long long n,const P<T> &mod){
     return res;
 }
 
-
-
-//Cantor-Zassenhaus
-//fは、相異なるd_max次の既約多項式いくつかの積
-//標数p
+//6.2節
 template<typename T>
-vector<P<T>> factorize(P<T> f,const int d_max,const int p){
+vector<std::pair<P<T>,int>> square_free_decomposition(P<T> f){
+    vector<std::pair<P<T>,int>> res;
+    P<T> flat=f/gcd_of_poly<T>(f,f.derivative());
+    int m=0;
+    while(flat.deg()>0){
+        print_poly<T>(f);
+        print_poly<T>(flat);
+        cout << "waaaaa ";
+        print_poly<T>(MOD<T>(f,flat));
+        while(MOD<T>(f,flat).deg()==-1){
+            cout << "D\n";
+            f=f/flat;
+            m++;
+        }
+        P<T> flat1=gcd_of_poly<T>(f,flat);
+        cout << "flat1 ";
+        print_poly<T>(flat1);
+        P<T> g=flat/flat1;
+        flat=flat1;
+        res.emplace_back(g,m);
+    }
+    return res;
+}
+
+//Cantor-Zassenhaus　ただし改善版の6.6節
+//f：無平方、相異なるd_max次の既約多項式の積
+//標数p
+//適切に動作するにはp^d_maxが64bit整数に収まることが必要
+template<typename T>
+vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
+    if(f.deg()==d_max)return {f};
     std::uniform_int_distribution<int> deg(1,2*d_max-1),value(0,p-1);
     const long long t=(mypow(p,d_max)-1)/2;
-    int cnt=100;
+    int cnt=1000;
     while(cnt--){
         const int d=deg(rnd);
         P<T> g(d+1);
@@ -286,12 +311,12 @@ vector<P<T>> factorize(P<T> f,const int d_max,const int p){
         g[0]-=1;
         g=gcd_of_poly<T>(f,g);
         if(g.deg()>0 && g.deg()<f.deg()){
-            auto res1=factorize<T>(g,d,p),res2=factorize<T>(f/g,d,p);
+            auto res1=CZ_factorize<T>(g,d,p),res2=CZ_factorize<T>(f/g,d,p);
             for(auto h:res2)res1.push_back(h);
             return res1;
         }
     }
-    return {f};
+    assert(false);
 }
 
 
@@ -304,10 +329,17 @@ int main(){
     int a;
     std::cin >> a;
     using Fpx=polynomial_ring<mint>;
-    Fpx::elem f({mint(a),0,1});//x^2+a
-    auto v=factorize<mint>(f,1,mint::mod());
-    for(auto &g:v){
-        g*=1/g.back();
+    Fpx::elem f({mint(a),1}),ff({mint(a),0,1});//x+a
+    f=f*f*f*ff*ff*ff*ff;
+    print_poly<mint>(f);
+    auto res=square_free_decomposition<mint>(f);
+    for(auto [g,m]:res){
+        g.monicize();
+        cout << m << ' ';
         print_poly<mint>(g);
     }
+    
+    Fpx::elem g({27});
+    Fpx::elem h({1,3336});
+    print_poly<mint>(gcd_of_poly<mint>(g,h));
 }

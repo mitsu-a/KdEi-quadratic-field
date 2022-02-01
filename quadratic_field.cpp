@@ -5,7 +5,9 @@
 #include <assert.h>
 #include <numeric>
 #include <set>
+#include <map>
 #include "basic_functions.hpp"
+#include "polynomial.hpp"
 
 //d:平方因子を持たず，0でも1でもない整数
 //Remainder関数（命題3.1.6）：112行目
@@ -294,6 +296,17 @@ struct ring_of_integer{
         }
         // @return the vector of pairs(p,i) s.t. (*this) is a product of p^i.
         std::vector<std::pair<ideal,int>> PrimeFactorize(){
+            if(gen[1]==0){
+                assert(gen[0]!=0);
+                std::map<std::pair<long long,long long>,int> res;
+                auto v=gen[0];
+                long long g=std::gcd(v.a,v.b);
+                v.a/=g,v.b/=g;
+                for(auto [p,i]:prime_factorize(g)){
+                    //F_p[x]/(x^2-d)を分解してi乗する
+                    return {};
+                }
+            }
             auto [u,v]=gen[0].mod_representative();
             //X,Yを管理する代わりに，seen_X,seen_Yという配列を管理する．
             std::vector seen_X(u,std::vector<bool>(v)),seen_Y(u,std::vector<bool>(v));

@@ -43,6 +43,20 @@ long long garner(long long a1,long long m1,long long a2,long long m2){
     }
 }
 
+std::vector<std::pair<long long,int>> prime_factorize(long long x){
+    std::vector<std::pair<long long,int>> res;
+    for(long long i=2;i*i<=x;i++){
+        int cnt=0;
+        while(x%i==0){
+            cnt++;
+            x/=i;
+        }
+        if(cnt)res.emplace_back(i,cnt);
+    }
+    if(x!=1)res.emplace_back(x,1);
+    return res;
+}
+
 template<int m>
 std::ostream& operator<<(std::ostream &os,const atcoder::static_modint<m> v){
     os << v.val();

@@ -11,10 +11,9 @@
 
 //使う時、必ず polynomial::init(mod) を実行する
 
-namespace polynomial{
+namespace polynomial_sp{
 
 using mint=atcoder::modint;
-
 using std::cout;
 using std::vector;
 
@@ -108,7 +107,7 @@ struct polynomial : vector<T> {
         polynomial res(f.deg()-g.deg()+1);
         while(f.deg()>=0){
             res[f.deg()-g.deg()]+=f.back()/g.back();
-            f=f.top_reduction_by(g);
+            f=top_reduction_by(f,g);
         }
         return res;
     }
@@ -136,16 +135,16 @@ using P=polynomial<T>;
 // @return true iff the first element top_reduces the second one.
 template<typename T>
 bool top_reduces(const P<T> &l,const P<T> &r){
-    return r.size()>=l.size();
+    return r.deg()>=l.deg();
 }
 // @return true iff the first element top_reduces the second one.
 bool top_reduces(const P<long long> &l,const P<long long> &r){
-    return r.size()>=l.size() && r.back()%l.back()==0;
+    return r.deg()>=l.deg() && r.back()%l.back()==0;
 }
 
 // @return the first element's top_reduction by the second one.
 template<typename T>
-P<T> top_reduction_by(const P<T> l,const P<T> &r){
+P<T> top_reduction_by(P<T> l,const P<T> &r){
     assert(top_reduces(r,l));
     const int dif=l.size()-r.size();
     assert(dif>=0);
@@ -189,7 +188,7 @@ P<T> gpoly(const P<T> &l,const P<T> &r){
 }
 template<typename T>
 P<T> spoly(const P<T> &f,const P<T> &g){
-    T a=lcm(f.back(),g.back());
+    T a=std::lcm(f.back(),g.back());
     T a_f=a/f.back(),a_g=a/g.back();
     P<T> res(std::max(f.size(),g.size()));
     for(size_t i=0;i<f.size();i++)res[res.size()-f.size()+i]+=f[i]*a_f;
@@ -216,7 +215,7 @@ struct ideal : vector<polynomial<T>> {
         P.erase(elem{0});
         while(!P.empty()){
             elem h=*P.begin();P.erase(P.begin());
-            h=h.normal_form(G);
+            h=normal_form(h,G);
             if(h.size()>1ul || h[0]!=0){
                 for(elem &g:G){
                     P.emplace(spoly(g,h));
@@ -284,20 +283,39 @@ P<T> MODPOW(P<T> f,long long n,const P<T> &mod){
 
 //6.2節
 //(g,i)：g^i
+//標数p
 template<typename T>
-vector<std::pair<P<T>,int>> square_free_decomposition(P<T> f){
+vector<std::pair<P<T>,int>> square_free_decomposition(P<T> f,int p){
     vector<std::pair<P<T>,int>> res;
-    P<T> flat=f/gcd_of_poly<T>(f,f.derivative());
-    int m=0;
-    while(flat.deg()>0){
-        while(MOD<T>(f,flat).deg()==-1){
-            f=f/flat;
-            m++;
+    if(f.derivative().deg()!=-1){
+        P<T> flat=f/gcd_of_poly<T>(f,f.derivative());
+        int m=0;
+        while(flat.deg()>0){
+            while(MOD<T>(f,flat).deg()==-1){
+                f=f/flat;
+                m++;
+            }
+            P<T> flat1=gcd_of_poly<T>(f,flat);
+            P<T> g=flat/flat1;
+            flat=flat1;
+            res.emplace_back(g,m);
         }
-        P<T> flat1=gcd_of_poly<T>(f,flat);
-        P<T> g=flat/flat1;
-        flat=flat1;
-        res.emplace_back(g,m);
+    }
+    ///////////////////////////////////////////////////////////////改善の余地あり
+    if(f.deg()>1){
+        std::uniform_int_distribution<int> val(0,p);
+        P<T> g(f.deg()/p+1);
+        while(true){
+            for(int i=0;i<=g.deg();i++){
+                g[i]=val(rnd);
+            }
+            if(MODPOW<T>(g,p,f).deg()==-1){
+                f=g;
+                break;
+            }
+        }
+        auto vec=square_free_decomposition(f,p);
+        for(auto [f,i]:vec)res.emplace_back(f,i*p);
     }
     return res;
 }
@@ -338,7 +356,17 @@ vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
         P<T> g(d+1);
         g.back()=1;
         for(int i=0;i<g.deg();i++)g[i]=value(rnd);
-        g=MODPOW<T>(g,t,f);
+        if(p==2){
+            P<T> G({0});
+            for(int j=0;j<f.deg();j++){
+                G+=g;
+                G=MOD<T>(G,f);
+                g*=g;
+                g=MOD<T>(g,f);
+            }
+            g=G;
+        }
+        else g=MODPOW<T>(g,t,f);
         g[0]-=1;
         g=gcd_of_poly<T>(f,g);
         if(g.deg()>0 && g.deg()<f.deg()){
@@ -354,7 +382,7 @@ vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
 //p^(結果に現れる最大次数)がオーバーフローしない必要がある
 template<typename T>
 vector<std::pair<P<T>,int>> factorize(P<T> f,const int p){
-    auto sqf=square_free_decomposition<T>(f);
+    auto sqf=square_free_decomposition<T>(f,p);
     vector<std::pair<P<T>,int>> res;
     for(auto [f,i]:sqf){
         for(auto [g,d]:distinct_degree_factorization<T>(f,p)){

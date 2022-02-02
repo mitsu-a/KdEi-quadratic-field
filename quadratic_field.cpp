@@ -169,6 +169,7 @@ struct ring_of_integer{
             gen[1]=0;
         }
         //Fと同じイデアルを生成する2元を見つけ，gen[0]及びgen[1]とする
+        //グレブナー基底を求める→簡約化　でうまくいかないか？
         ideal(std::vector<elem> F){
             gen[0]=gen[1]=0;
             std::vector<elem> tmp;
@@ -255,38 +256,19 @@ struct ring_of_integer{
         ideal operator*(const ideal &r)const{
             return ideal({gen[0]*r.gen[0],gen[0]*r.gen[1],gen[1]*r.gen[0],gen[1]*r.gen[1]});
         }
+        //グレブナー基底が取れているので、簡単？
+        //2元ある時のグレブナー基底の形が未証明なので、とりあえずいちいちグレブナー基底を計算する　2元ある時のグレブナー基底は、gcd(g1,g2)==1ならなんとか手計算できそうなのでひとまずそのステップを踏む形で実装する
         bool Contains(elem x){
             if(gen[0]==0)swap(gen[0],gen[1]);
             if(gen[0]==0)return x==0;
-
-            //零でない，ノルムの小さい方の元をgen[0]とする．
-            if(gen[1]!=0 && std::abs(gen[0].norm()) > std::abs(gen[1].norm()))swap(gen[0],gen[1]);
-            gen[1]=Remainder(gen[1],gen[0]);
-            auto [u,v]=gen[0].mod_representative();
-
-            x=Remainder(x,gen[0]);
-
-            if(x==0)return true;
-            //Iを管理する代わりにseenを管理する
-            std::vector seen(u,std::vector<bool>(v));
-            seen[0][0]=true;
-            std::queue<elem> q;
-            q.emplace(0);
-
-            while(!q.empty()){
-                //qの先頭元をwとする．
-                elem w=q.front();q.pop();
-                for(elem z:{Remainder(w+gen[1],gen[0]),Remainder(w+gen[1]*elem(0,1),gen[0])}){
-                    //xがIに含まれない場合
-                    if(!seen[z.a][z.b]){
-                        if(z==x)return true;
-                        seen[z.a][z.b]=true;
-                        q.emplace(z);
-                    }
-                }
-            }
-            //xがIに含まれるならば，ここまでのどこかでtrueがreturnされているはずである．
-            return false;
+            int g=std::gcd(std::gcd(gen[0].a,gen[0].b), std::gcd(gen[1].a,gen[1].b));
+            if(!x.is_divided_by(elem(g)))return false;
+            polynomial_sp::polynomial<long long> f({x.b/g,x.a/g}),h({-d,0,1});
+            polynomial_sp::polynomial<long long> gen_poly[2];
+            for(int i=0;i<2;i++)gen_poly[i]=polynomial_sp::polynomial<long long>({gen[i].b/g,gen[i].a/g});
+            polynomial_sp::ideal<long long> I({h,gen_poly[0],gen_poly[1]});
+            I=I.strong_grobner_basis();
+            return polynomial_sp::normal_form(f,I).deg()==-1;
         }
         bool Contains(ideal J){
             return Contains(J.gen[0]) && Contains(J.gen[1]);
@@ -297,63 +279,41 @@ struct ring_of_integer{
         // @return the vector of pairs(p,i) s.t. (*this) is a product of p^i.
         std::vector<std::pair<ideal,int>> PrimeFactorize(){
             if(gen[1]==0){
+                std::vector<std::pair<ideal,int>> res;
                 assert(gen[0]!=0);
-                std::map<std::pair<long long,long long>,int> res;
-                auto v=gen[0];
+                elem v=gen[0];
                 long long g=std::gcd(v.a,v.b);
                 v.a/=g,v.b/=g;
                 for(auto [p,i]:prime_factorize(g)){
                     //F_p[x]/(x^2-d)を分解してi乗する
-                    return {};
-                }
-            }
-            auto [u,v]=gen[0].mod_representative();
-            //X,Yを管理する代わりに，seen_X,seen_Yという配列を管理する．
-            std::vector seen_X(u,std::vector<bool>(v)),seen_Y(u,std::vector<bool>(v));
-            for(T i=0;i<u;i++)for(T j=0;j<v;j++){
-                //tがXの要素なら次へ．
-                if(seen_X[i][j])continue;
-                else{
-                    elem t(i,j);
-                    //I,seen_Iを同時に管理する．
-                    std::vector<elem> I={0};
-                    std::vector seen_I(u,std::vector<bool>(v));
-                    seen_I[0][0]=true;
-                    std::queue<elem> q;
-                    q.emplace(0);
-                    while(!q.empty()){
-                        auto w=q.front();q.pop();
-                        for(elem z:{Remainder(w+t,gen[0]),Remainder(w+t*elem(0,1),gen[0])}){
-                            //zがIに含まれない時
-                            if(!seen_I[z.a][z.b]){
-                                seen_I[z.a][z.b]=true;
-                                I.emplace_back(z);
-                                q.emplace(z);
-                            }
-                        }
+                    //x^2-dをF_pで因数分解して、(f(√d),p)^i
+                    polynomial_sp::init(p);
+                    auto fac=polynomial_sp::factorize(polynomial_sp::polynomial<polynomial_sp::mint>({-d,0,1}),p);
+                    if(p==2)polynomial_sp::print_poly<polynomial_sp::mint>({-d,0,1});
+
+                    //f=2
+                    if(fac.size()==1 && fac[0].second==1){
+                        res.emplace_back(ideal({elem(p)}),i);
                     }
-                    //Iが全体に一致した場合は次の元へ．
-                    if((T)I.size()==std::abs(gen[0].norm()))continue;
-                    for(elem w:I){
-                        seen_X[w.a][w.b]=true;
-                        seen_Y[w.a][w.b]=false;
+                    //f==1
+                    else{
+                        for(auto [poly,j]:fac)res.emplace_back(ideal({elem(p),elem(poly[0].val(),poly[1].val())}),i*j);
                     }
-                    seen_Y[t.a][t.b]=true;
+                    std::cout << p << ' ' << fac.size() << '\n';
                 }
-            }
-            std::vector<std::pair<ideal,int>> S;
-            //Yの要素を走査する
-            for(T i=0;i<u;i++)for(T j=0;j<v;j++)if(seen_Y[i][j]){
-                elem t(i,j);
-                int cnt=0;
-                ideal J({gen[0],t});
-                while(J.Contains(*this)){
-                    J=J*ideal({gen[0],t});
-                    cnt++;
+
+                long long n=v.norm();
+                auto [s,t]=solve_lineareq(v.a,v.b);
+                for(auto [p,i]:prime_factorize(n)){
+                    ideal I({elem(p),elem(v.a*t+v.b*s*d,1)});
+                    for(auto &&[J,j]:res)if(I==J)j+=i,i=0;
+                    if(i)res.emplace_back(I,i);
                 }
-                if(cnt)S.push_back({ideal({gen[0],t}),cnt});
+                return res;
             }
-            return S;
+            //2元生成でもグレブナー基底を計算すればできるはず
+            //gcd(g1,g2)を分離しておくことで、必ずグレブナー基底には1次式が現れるため。
+            return {};
         }
     };
 };
@@ -369,15 +329,25 @@ using std::cout;
 using std::endl;
 
 long long d=-5;
+int cnt=0;
 
 int main(){
     using A=ring_of_integer<d>;
-    for(int p=2;p<=100;p++)if(is_prime(p)){
+    A::ideal I({6});
+    auto res=I.PrimeFactorize();
+    for(auto [v,i]:res){
+        cout << v.gen[0] << ' ' << v.gen[1] << ' ' << i << endl;
+    }
+
+    /*
+    for(int p=200000000;p<=200000000+100000;p++)if(is_prime(p)){
         A::ideal I({p});
         auto res=I.PrimeFactorize();
         //Iが素イデアルならばpを出力する．
         if(res.size()==1ul && res[0].second==1){
-            cout << p << endl;
+            cnt++;
         }
     }
+    cout << cnt << endl;
+    */
 }

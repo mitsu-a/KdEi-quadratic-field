@@ -21,9 +21,9 @@ long long mypow(const long long a,const long long b){
     return r;
 }
 
-// @return pair(x,y) s.t. ax+by=gcd(a,b)
+// @return pair(x,y) s.t. ax+by=|gcd(a,b)|
 std::pair<long long,long long> solve_lineareq(long long a,long long b){
-    if(b==0)return {1,0};
+    if(b==0)return {(a>0 ? 1:-1),0};
     long long neb=MOD(a,b);
     auto [x,y]=solve_lineareq(b,neb);
     return {y,x-(a-neb)/b*y};

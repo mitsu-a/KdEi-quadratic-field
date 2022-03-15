@@ -9,7 +9,7 @@
 #include <random>
 #include "basic_functions.hpp"
 
-//使う時、必ず polynomial::init(mod) を実行する
+//F_pでの計算に用いる時，必ず polynomial::init(p) を実行する．
 
 namespace polynomial_sp{
 
@@ -46,6 +46,15 @@ struct polynomial : vector<T> {
         assert(this->size());
         if(this->size()==1 && (*this)[0]==0)return -1;
         return this->size()-1;
+    }
+    T eval(const T x)const{
+        T ans=0;
+        T v=1;
+        for(int i=0;i<=deg();i++){
+            ans+=v*(*this)[i];
+            v*=x;
+        }
+        return ans;
     }
     polynomial operator-()const{
         polynomial res(*this);
@@ -132,13 +141,18 @@ struct polynomial : vector<T> {
 template<typename T>
 using P=polynomial<T>;
 
+// T should be a field.(if it isn't field, then you have to use 'top_reduces<long long>'.)
 // @return true iff the first element top_reduces the second one.
+// (if the first element is 0, then return false.)
 template<typename T>
 bool top_reduces(const P<T> &l,const P<T> &r){
+    if(l.deg()==-1)return false;
     return r.deg()>=l.deg();
 }
 // @return true iff the first element top_reduces the second one.
+// (if the first element is 0, then return false.)
 bool top_reduces(const P<long long> &l,const P<long long> &r){
+    if(l.deg()==-1)return false;
     return r.deg()>=l.deg() && r.back()%l.back()==0;
 }
 
@@ -203,6 +217,44 @@ template<typename T>
 struct ideal : vector<polynomial<T>> {
     using elem=polynomial<T>;
     using vector<elem>::vector;
+    //生成系が，先頭のみx^2-dという形であり，他は全て1次以下である場合．
+    //Tが一意分解環でありgcdが計算でき，なおかつ，x^2-dを除いた多項式たちの係数全体のgcdが1，という仮定が必要．
+    //特に二次体の計算において使える．現状Z[√d]の形にしか対応していないので注意！！！！！！！
+    //必ず2項で，(x+a,b)という形になる（a,bは整数）ため，その形で返す．
+    std::pair<elem,elem> strong_grobner_basis_qf()const{
+        auto &now=*this;
+        const int sz=now.size()-1;
+        const int d=-now[0][0];
+        std::vector<T> g(sz),c(sz),n(sz);
+        for(int i=1;i<=sz;i++){
+            g[i-1]=std::gcd(now[i][0],now[i][1]);
+            auto [s,t]=solve_lineareq(now[i][1],now[i][0]);
+            c[i-1]=now[i][0]*s+now[i][1]*t*d;
+            n[i-1]=std::abs(now[i][1]*now[i][1]*d - now[i][0]*now[i][0])/g[i-1];
+        }
+        //g[0]x[0]+...+g[sz-1]x[sz-1]=1を解く
+        vector<T> x(sz);
+        x[0]=1;
+        T gcd_all=g[0];
+        for(int i=1;i<sz;i++){
+            auto [s,t]=solve_lineareq(gcd_all,g[i]);
+            x[i]=t;
+            for(int j=0;j<i;j++)x[j]*=s;
+            gcd_all=std::gcd(gcd_all,g[i]);
+        }
+        T c_val=0,n_val=0;
+        for(int i=0;i<sz;i++){
+            c_val+=c[i]*x[i];
+            n_val=std::gcd(n_val,n[i]);
+        }
+        elem lef=elem({c_val,1});
+        for(int i=0;i<sz;i++){
+            n_val=std::gcd(n_val, top_reduction_by(now[i+1],lef)[0]);
+        }
+        lef[0]%=n_val;
+        if(lef[0]<0)lef[0]+=n_val;
+        return {lef,{n_val}};
+    }
     ideal strong_grobner_basis()const{
         ideal G=*this;
         //いま、整域なのでapolyは全て0。よって考慮に入れなくて良い。
@@ -225,6 +277,7 @@ struct ideal : vector<polynomial<T>> {
                 P.erase(elem{0});
             }
         }
+        //簡約化を挟むべきか？
         return G;
     }
 };
@@ -301,21 +354,13 @@ vector<std::pair<P<T>,int>> square_free_decomposition(P<T> f,int p){
             res.emplace_back(g,m);
         }
     }
-    ///////////////////////////////////////////////////////////////改善の余地あり
     if(f.deg()>1){
-        std::uniform_int_distribution<int> val(0,p);
         P<T> g(f.deg()/p+1);
-        while(true){
-            for(int i=0;i<=g.deg();i++){
-                g[i]=val(rnd);
-            }
-            if(MODPOW<T>(g,p,f).deg()==-1){
-                f=g;
-                break;
-            }
+        for(int i=0;i<=f.deg();i+=p){
+            g[i/p]=f[i];
         }
-        auto vec=square_free_decomposition(f,p);
-        for(auto [f,i]:vec)res.emplace_back(f,i*p);
+        auto vec=square_free_decomposition(g,p);
+        for(auto &&[h,i]:vec)res.emplace_back(h,i*p);
     }
     return res;
 }
@@ -344,7 +389,7 @@ vector<std::pair<P<T>,int>> distinct_degree_factorization(P<T> f,const int p){
 //Cantor-Zassenhaus　ただし改善版の6.6節
 //f：無平方、相異なるd_max次の既約多項式の積
 //標数p
-//適切に動作するにはp^d_maxが64bit整数に収まることが必要
+//適切に動作するにはp^d_maxが符号付き64bit整数に収まることが必要
 template<typename T>
 vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
     if(f.deg()==d_max)return {f};
@@ -382,7 +427,17 @@ vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
 //p^(結果に現れる最大次数)がオーバーフローしない必要がある
 template<typename T>
 vector<std::pair<P<T>,int>> factorize(P<T> f,const int p){
+    //今回は全探索できるので，一旦全探索に……．
+    /*どうやらこれ自体は適切に動作する，多分．↓
+    for(int i=0;i<p;i++){
+        polynomial<T> l({i,1}),r({-i,1});
+        if(l*r==f)return {{l,1},{r,1}};
+    }
+    return {{f,1}};
+    */
+
     auto sqf=square_free_decomposition<T>(f,p);
+    //return sqf;//////////////////////////////////////デバッグ用
     vector<std::pair<P<T>,int>> res;
     for(auto [f,i]:sqf){
         for(auto [g,d]:distinct_degree_factorization<T>(f,p)){

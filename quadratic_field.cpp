@@ -257,22 +257,27 @@ bool is_prime(int p){
     return true;
 }
 
+using std::cin;
 using std::cout;
 using std::endl;
 
-long long d=-1;
-int cnt=0;
+long long d;
 
 int main(){
+    int n;
+    cin >> n;
+    cin >> d;
     using A=ring_of_integer<d>;
-
-    for(int i=1;i<=25;i++){
-        cout << i << ":\n";
-        A::ideal I({i});
-        for(auto [J,j]:I.PrimeFactorize()){
-            cout << " (" << J.gen[0] << ',' << J.gen[1] << ")^" << j << endl;
-        }
+    int ans=0;
+    for(int i=0;i<n;i++){
+        int a,b,c,d;
+        cin >> a >> b >> c >> d;
+        A::elem x(a,b),y(c,d);
+        A::ideal I({x,y});
+        ans+=I.PrimeFactorize().size();
     }
+    cout << ans << '\n';
+    cout << (double)clock()/CLOCKS_PER_SEC << '\n';
     /*
     long long ans=0;
     for(int a=2000-100;a<=2000;a++)for(int b=2000-100;b<=2000;b++){

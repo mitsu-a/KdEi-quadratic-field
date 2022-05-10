@@ -224,11 +224,15 @@ struct ideal : vector<polynomial<T>> {
     std::pair<elem,elem> strong_grobner_basis_qf()const{
         auto &now=*this;
         const int sz=now.size()-1;
-        const int d=-now[0][0];
+        const long long d=-now[0][0];
         std::vector<T> g(sz),c(sz),n(sz);
         for(int i=1;i<=sz;i++){
             g[i-1]=std::gcd(now[i][0],now[i][1]);
+            long long gcd=std::gcd(now[i][1],now[i][0]);
             auto [s,t]=solve_lineareq(now[i][1],now[i][0]);
+            t%=now[i][1]/gcd;
+            s=(1-now[i][0]/gcd*t)/(now[i][1]/gcd);
+            assert(s*now[i][1] + t*now[i][0] == gcd);
             c[i-1]=now[i][0]*s+now[i][1]*t*d;
             n[i-1]=std::abs(now[i][1]*now[i][1]*d - now[i][0]*now[i][0])/g[i-1];
         }
@@ -252,7 +256,6 @@ struct ideal : vector<polynomial<T>> {
             n_val=std::gcd(n_val, top_reduction_by(now[i+1],lef)[0]);
         }
         lef[0]%=n_val;
-        if(lef[0]<0)lef[0]+=n_val;
         return {lef,{n_val}};
     }
     ideal strong_grobner_basis()const{

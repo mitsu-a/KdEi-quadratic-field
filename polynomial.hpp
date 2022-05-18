@@ -340,6 +340,7 @@ P<T> MODPOW(P<T> f,long long n,const P<T> &mod){
 //6.2節
 //(g,i)：g^i
 //標数p
+//FIXME:バグ！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！
 template<typename T>
 vector<std::pair<P<T>,int>> square_free_decomposition(P<T> f,int p){
     vector<std::pair<P<T>,int>> res;
@@ -415,7 +416,7 @@ vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
             g=G;
         }
         else g=MODPOW<T>(g,t,f);
-        g[0]-=1;
+        g[0]-=1;//FIXME:バグ？p=2の時これダメじゃない？
         g=gcd_of_poly<T>(f,g);
         if(g.deg()>0 && g.deg()<f.deg()){
             auto res1=CZ_factorize<T>(g,d,p),res2=CZ_factorize<T>(f/g,d,p);

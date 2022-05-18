@@ -263,34 +263,13 @@ using std::endl;
 
 long long d;
 
+//FIXME:x^2+xの因数分解ができない　たぶんsqfが悪い
 int main(){
-    int n;
-    cin >> n;
-    cin >> d;
-    using A=ring_of_integer<d>;
-    int ans=0;
-    for(int i=0;i<n;i++){
-        int a,b,c,d;
-        cin >> a >> b >> c >> d;
-        A::elem x(a,b),y(c,d);
-        A::ideal I({x,y});
-        ans+=I.PrimeFactorize().size();
+    polynomial_sp::init(2);
+    polynomial_sp::polynomial<atcoder::modint> P({0,1,1});//x^2+x
+    auto res=polynomial_sp::square_free_decomposition(P,2);
+    for(auto [v,d]:res){
+        for(auto i:v)cout << i << ' ';
+        cout << " ^" << d << endl;
     }
-    cout << ans << '\n';
-    cout << (double)clock()/CLOCKS_PER_SEC << '\n';
-    /*
-    long long ans=0;
-    for(int a=2000-100;a<=2000;a++)for(int b=2000-100;b<=2000;b++){
-        A::ideal I({A::elem(a,b)});
-        auto res=I.PrimeFactorize();
-        //Iが素イデアルならばa+bを足す
-        if(res.size()==1ul && res[0].second==1){
-            ans+=a+b;
-        }
-    }
-    //1680621
-    //になるべきらしい．
-    cout << ans << endl;
-    cout << clock()/(double)CLOCKS_PER_SEC << endl;
-    */
 }

@@ -75,7 +75,7 @@ struct polynomial : vector<T> {
         if(this->size()<r.size())this->resize(r.size());
         size_t sz=1;
         for(size_t i=0;i<this->size();i++){
-            (*this)[i]-=r[i];
+            if(i<r.size())(*this)[i]-=r[i];
             if((*this)[i]!=0)sz=i+1;
         }
         this->resize(sz);
@@ -160,16 +160,13 @@ bool top_reduces(const P<long long> &l,const P<long long> &r){
 template<typename T>
 P<T> top_reduction_by(P<T> l,const P<T> &r){
     assert(top_reduces(r,l));
-    const int dif=l.size()-r.size();
-    assert(dif>=0);
-    int sz=1;
+    const int deg_dif=l.deg()-r.deg();
+    assert(deg_dif>=0);
     for(size_t i=0;i<r.size();i++){
-        //res.back()が書き換わるのは最後なので、正しく計算できる
-        l[i+dif]-=l.back()/r.back() * r[i];
-        if(l[i+dif]!=0)sz=i+dif+1;
+        //l.back()が書き換わるのは最後なので、正しく計算できる
+        l[i+deg_dif]-=l.back()/r.back() * r[i];
     }
-    l.resize(sz);
-    assert(l.size());
+    while(l.back()==0 && l.size()>1)l.pop_back();
     return l;
 }
 
@@ -292,11 +289,19 @@ void print_poly(P<T> x){
         std::cout << "0\n";
         return;
     }
+    bool fir=true;
     for(int i=0;i<=x.deg();i++){
-        std::cout << x[i] << "x^" << i;
-        if(i==x.deg())cout << '\n';
-        else cout << '+';
+        if(x[i]==0)continue;
+        if(!fir)std::cout << '+';
+        if(i!=0){
+            if(x[i]!=1)std::cout << x[i];
+            if(i!=1)std::cout << "x^" << i;
+            else std::cout << 'x';
+        }
+        else std::cout << x[i];
+        fir=false;
     }
+    cout << '\n';
 }
 
 //遅いもので妥協している　高速化はできるのでする（必要箇所が実装でき次第やる）
@@ -340,7 +345,6 @@ P<T> MODPOW(P<T> f,long long n,const P<T> &mod){
 //6.2節
 //(g,i)：g^i
 //標数p
-//FIXME:バグ！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！
 template<typename T>
 vector<std::pair<P<T>,int>> square_free_decomposition(P<T> f,int p){
     vector<std::pair<P<T>,int>> res;
@@ -371,14 +375,14 @@ vector<std::pair<P<T>,int>> square_free_decomposition(P<T> f,int p){
 
 //6.5節 distinct degree factorization
 //f：無平方な多項式
-//(f_i,i)：i次の既約多項式
+//(f_i,i)：i次の既約多項式の積
 //標数p
 template<typename T>
 vector<std::pair<P<T>,int>> distinct_degree_factorization(P<T> f,const int p){
     vector<std::pair<P<T>,int>> res;
     P<T> w({0,1}),x({0,1});//x
     for(int i=1;2*i<=f.deg();i++){
-        w=MODPOW<T>(w,p,f);//x^(p^i)
+        w=MODPOW<T>(w,p,f);//w^p
         P<T> g=gcd_of_poly<T>(f,w-x);//x^(p^i)-x
         if(g.deg()>0){
             res.emplace_back(g,i);
@@ -393,11 +397,11 @@ vector<std::pair<P<T>,int>> distinct_degree_factorization(P<T> f,const int p){
 //Cantor-Zassenhaus　ただし改善版の6.6節
 //f：無平方、相異なるd_max次の既約多項式の積
 //標数p
-//適切に動作するにはp^d_maxが符号付き64bit整数に収まることが必要
+//pが奇素数の場合に適切に動作するにはp^d_maxが符号付き64bit整数に収まることが必要
 template<typename T>
 vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
     if(f.deg()==d_max)return {f};
-    std::uniform_int_distribution<int> deg(1,2*d_max-1),value(0,p-1);
+    std::uniform_int_distribution<int> deg(0,2*d_max-1),value(0,p-1);
     const long long t=(mypow(p,d_max)-1)/2;
     int cnt=1000;
     while(cnt--){
@@ -407,7 +411,7 @@ vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
         for(int i=0;i<g.deg();i++)g[i]=value(rnd);
         if(p==2){
             P<T> G({0});
-            for(int j=0;j<f.deg();j++){
+            for(int j=0;j<d_max;j++){
                 G+=g;
                 G=MOD<T>(G,f);
                 g*=g;
@@ -415,8 +419,10 @@ vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
             }
             g=G;
         }
-        else g=MODPOW<T>(g,t,f);
-        g[0]-=1;//FIXME:バグ？p=2の時これダメじゃない？
+        else{
+            g=MODPOW<T>(g,t,f);
+            g[0]-=1;
+        }
         g=gcd_of_poly<T>(f,g);
         if(g.deg()>0 && g.deg()<f.deg()){
             auto res1=CZ_factorize<T>(g,d,p),res2=CZ_factorize<T>(f/g,d,p);
@@ -431,17 +437,15 @@ vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
 //p^(結果に現れる最大次数)がオーバーフローしない必要がある
 template<typename T>
 vector<std::pair<P<T>,int>> factorize(P<T> f,const int p){
-    //今回は全探索できるので，一旦全探索に……．
-    /*どうやらこれ自体は適切に動作する，多分．↓
+    /*
     for(int i=0;i<p;i++){
         polynomial<T> l({i,1}),r({-i,1});
-        if(l*r==f)return {{l,1},{r,1}};
+        if(l*r==f)return (l==r ? {{l,2}} : {{l,1},{r,1}});
     }
     return {{f,1}};
     */
 
     auto sqf=square_free_decomposition<T>(f,p);
-    //return sqf;//////////////////////////////////////デバッグ用
     vector<std::pair<P<T>,int>> res;
     for(auto [f,i]:sqf){
         for(auto [g,d]:distinct_degree_factorization<T>(f,p)){

@@ -3,6 +3,8 @@
 
 #include <utility>
 #include <numeric>
+#include <iostream>
+#include <vector>
 #include <atcoder/modint>
 
 // @return x mod m

@@ -28,15 +28,9 @@ void init(const int mod=0){
     return;
 }
 
-//できているもの
-//Zのイデアルのstrong Gröbner basisを求めるアルゴリズム
-
 //現状の実装の要件
 //基本：PIDならなんでも良い %演算子などは必要
 //gcdなどを使う場合：体　できれば有限体（誤差が怖い）
-
-//改善案
-//f(x)をf(x)=x^i * g(x)なる(i,g)の組として保持する（単項式の扱いが楽になる、単項式をかける操作は多いので実装も綺麗になって良いかもしれない）
 
 template <typename T>
 struct polynomial : vector<T> {
@@ -163,7 +157,7 @@ P<T> top_reduction_by(P<T> l,const P<T> &r){
     const int deg_dif=l.deg()-r.deg();
     assert(deg_dif>=0);
     for(size_t i=0;i<r.size();i++){
-        //l.back()が書き換わるのは最後なので、正しく計算できる
+        //l.back()が書き換わるのは最後なので，正しく計算可能．
         l[i+deg_dif]-=l.back()/r.back() * r[i];
     }
     while(l.back()==0 && l.size()>1)l.pop_back();
@@ -174,11 +168,11 @@ template<typename T>
 P<T> normal_form(P<T> l,const vector<P<T>> &G){
     //while(l!=0)
     while(l.deg()!=-1){
-        //1度でもreduceされたらtrueに
+        //1度でもreduceされたらtrue
         bool reduced=false;
         for(const P<T> &g:G){
             if(top_reduces(g,l)){
-                //top-reductionする
+                //top-reduction
                 l=top_reduction_by(l,g);
                 reduced=true;
             }
@@ -216,7 +210,7 @@ struct ideal : vector<polynomial<T>> {
     using vector<elem>::vector;
     //生成系が，先頭のみx^2-dという形であり，他は全て1次以下である場合．
     //Tが一意分解環でありgcdが計算でき，なおかつ，x^2-dを除いた多項式たちの係数全体のgcdが1，という仮定が必要．
-    //特に二次体の計算において使える．現状Z[√d]の形にしか対応していないので注意！！！！！！！
+    //特に二次体の，整数環がZ[√d]と書ける場合の計算において使える．
     //必ず2項で，(x+a,b)という形になる（a,bは整数）ため，その形で返す．
     std::pair<elem,elem> strong_grobner_basis_qf()const{
         auto &now=*this;
@@ -257,8 +251,6 @@ struct ideal : vector<polynomial<T>> {
     }
     ideal strong_grobner_basis()const{
         ideal G=*this;
-        //いま、整域なのでapolyは全て0。よって考慮に入れなくて良い。
-        //spolyはほぼtop-reductionになるが考慮対象にすべきなのか？
         std::set<elem> P;
         for(size_t i=0;i<this->size();i++)for(size_t j=0;j<i;j++){
             P.emplace(spoly((*this)[i],(*this)[j])); 
@@ -277,7 +269,6 @@ struct ideal : vector<polynomial<T>> {
                 P.erase(elem{0});
             }
         }
-        //簡約化を挟むべきか？
         return G;
     }
 };
@@ -304,7 +295,6 @@ void print_poly(P<T> x){
     cout << '\n';
 }
 
-//遅いもので妥協している　高速化はできるのでする（必要箇所が実装でき次第やる）
 template<typename T>
 P<T> gcd_of_poly(P<T> x,P<T> y){
     while(x.deg()!=-1){
@@ -317,7 +307,6 @@ P<T> gcd_of_poly(P<T> x,P<T> y){
     return y;
 }
 
-//速くできる、はず　一旦妥協
 template<typename T>
 P<T> MOD(P<T> f,const P<T> &mod){
     assert(f.size());
@@ -437,14 +426,6 @@ vector<P<T>> CZ_factorize(P<T> f,const int d_max,const int p){
 //p^(結果に現れる最大次数)がオーバーフローしない必要がある
 template<typename T>
 vector<std::pair<P<T>,int>> factorize(P<T> f,const int p){
-    /*
-    for(int i=0;i<p;i++){
-        polynomial<T> l({i,1}),r({-i,1});
-        if(l*r==f)return (l==r ? {{l,2}} : {{l,1},{r,1}});
-    }
-    return {{f,1}};
-    */
-
     auto sqf=square_free_decomposition<T>(f,p);
     vector<std::pair<P<T>,int>> res;
     for(auto [f,i]:sqf){

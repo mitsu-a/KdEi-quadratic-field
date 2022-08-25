@@ -9,15 +9,11 @@
 #include "basic_functions.hpp"
 #include "polynomial.hpp"
 
-//d:平方因子を持たず，0でも1でもない整数
-//Remainder関数（命題3.1.6）：112行目
-//Generator関数（命題3.2.2）に相当する関数：170行目　（ここではイデアルのコンストラクタとして実装してある）
-//Contains関数：255行目　（ここでは，2つの生成元をGenerator関数により既に見つけてある場合について実装してある）
-//PrimeFactorize関数：295行目
+//d:平方因子を持たず，0でも1でもなく，かつd≡2,3(mod4)を満たす整数．
 
 template<long long &d,typename T=long long>
 struct ring_of_integer{
-    //a+b\\sqrt{d}
+    //a+b√d
     struct elem{
         T a,b;
         elem():a(0),b(0){}
@@ -196,7 +192,6 @@ struct ring_of_integer{
         ideal operator*(const ideal &r)const{
             return ideal({gen[0]*r.gen[0],gen[0]*r.gen[1],gen[1]*r.gen[0],gen[1]*r.gen[1]});
         }
-        //グレブナー基底が取れているので、簡単
         bool Contains(elem x){
             if(gen[0]==0 && gen[1]==0)return x==0;
             const int gcd=std::gcd(std::gcd(gen[0].a, gen[0].b), std::gcd(gen[1].a, gen[1].b));
@@ -204,8 +199,8 @@ struct ring_of_integer{
             x.a/=gcd,x.b/=gcd;
             polynomial_sp::polynomial<T> f({-d,0,1}),g({gen[0].a/gcd,gen[0].b/gcd}),h({gen[1].a/gcd,gen[1].b/gcd}), X({x.a,x.b});
             polynomial_sp::ideal<T> I({f,g,h});
-            auto [l,r]=I.strong_grobner_basis_qf();////////////////////////////////////////////////現状，Z[√d]しか対応していない．
-            return X.eval(-l[0])%r[0]==0;//多項式としての剰余計算よりはこちらの方が若干速そう……？他がボトルネックなので変わらないが．
+            auto [l,r]=I.strong_grobner_basis_qf();//Z[√d]のみ．
+            return X.eval(-l[0])%r[0]==0;
         }
         bool Contains(ideal J){
             return Contains(J.gen[0]) && Contains(J.gen[1]);
@@ -220,9 +215,6 @@ struct ring_of_integer{
             long long g=std::gcd(std::gcd(gen[0].a,gen[0].b),std::gcd(gen[1].a,gen[1].b));
 
             for(auto [p,i]:prime_factorize(g)){
-                //F_p[x]/(x^2-d)を分解してi乗する
-                //x^2-dをF_pで因数分解して、(f(√d),p)^i
-
                 polynomial_sp::init(p);
                 auto fac=polynomial_sp::factorize(polynomial_sp::polynomial<polynomial_sp::mint>({-d,0,1}),p);
 
@@ -230,7 +222,7 @@ struct ring_of_integer{
                 if(fac.size()==1 && fac[0].second==1){
                     res.emplace_back(ideal({elem(p)}),i);
                 }
-                //f==1
+                //相対次数f=1
                 else{
                     for(auto [poly,j]:fac)res.emplace_back(ideal({elem(p),elem(poly[0].val(),poly[1].val())}),i*j);
                 }
@@ -250,26 +242,28 @@ struct ring_of_integer{
     };
 };
 
-bool is_prime(int p){
+bool is_PrimeNumber(int p){
     for(int i=2;i*i<=p;i++){
         if(p%i==0)return false;
     }
     return true;
 }
 
-using std::cin;
-using std::cout;
-using std::endl;
+long long d=-5;
 
-long long d;
-
-//FIXME:x^2+xの因数分解ができない　たぶんsqfが悪い
 int main(){
-    polynomial_sp::init(2);
-    polynomial_sp::polynomial<atcoder::modint> P({0,1,1});//x^2+x
-    auto res=polynomial_sp::square_free_decomposition(P,2);
-    for(auto [v,d]:res){
-        for(auto i:v)cout << i << ' ';
-        cout << " ^" << d << endl;
+    using A=ring_of_integer<d>;
+    std::vector<int> PrimeIdeal;
+    for(int i=2;i<=1000;i++){
+        if(is_PrimeNumber(i)){
+            A::ideal I({i});
+            auto v=I.PrimeFactorize();
+            if(v.size()==1 && v.front().second==1){
+                PrimeIdeal.emplace_back(i);
+            }
+        }
     }
+
+    for(int i:PrimeIdeal)std::cout << i << ' ';
+    std::cout << std::endl;
 }

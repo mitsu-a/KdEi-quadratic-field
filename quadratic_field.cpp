@@ -249,21 +249,37 @@ bool is_PrimeNumber(int p){
     return true;
 }
 
-long long d=-5;
+long long d=7;
 
 int main(){
     using A=ring_of_integer<d>;
-    std::vector<int> PrimeIdeal;
+    std::vector<int> PrimeIdeal(1001,-1);
+    /*
+    PrimeIdeal[i]=
+     - iが素数でない：-1                    ->' 'を出力
+     - iが素数であるが素イデアルを生成しない：0 ->'.'を出力
+     - iが素数であり素イデアルを生成する：1    ->'#'を出力
+    */
     for(int i=2;i<=1000;i++){
         if(is_PrimeNumber(i)){
             A::ideal I({i});
             auto v=I.PrimeFactorize();
             if(v.size()==1 && v.front().second==1){
-                PrimeIdeal.emplace_back(i);
+                PrimeIdeal[i]=1;
+            }
+            else{
+                PrimeIdeal[i]=0;
             }
         }
     }
 
-    for(int i:PrimeIdeal)std::cout << i << ' ';
+    int m;
+    std::cin >> m;
+    for(int i=0;i<=1000;i++){
+        char c=' ';
+        if(PrimeIdeal[i]==0)c='.';
+        else if(PrimeIdeal[i]==1)c='#';
+        std::cout << c << " \n"[i%m==m-1];
+    }
     std::cout << std::endl;
 }
